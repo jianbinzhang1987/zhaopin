@@ -6,8 +6,9 @@ from django.utils import timezone
 
 from apps.recruitment.models import AiJob, Evaluation
 from services.analysis_workflow import build_analysis, generate_development_task, generate_regular_questions
+from services.llm_client import get_llm_client
 from services.resume_parser import extract_pdf_text, summarize_resume_text
-from services.scoring_workflow import build_report
+from services.scoring_workflow import apply_score, build_report, score_submission
 
 
 class Command(BaseCommand):
@@ -18,6 +19,11 @@ class Command(BaseCommand):
         parser.add_argument("--sleep", type=float, default=2.0, help="没有任务时的等待秒数")
 
     def handle(self, *args, **options):
+        self.llm = get_llm_client()
+        if self.llm:
+            self.stdout.write(f"已启用大模型：{self.llm.model} @ {self.llm.base_url}")
+        else:
+            self.stdout.write("未配置 LLM_API_KEY，将使用本地兜底工作流。")
         while True:
             job = self.claim_job()
             if not job:
@@ -56,36 +62,57 @@ class Command(BaseCommand):
                 resume.parse_error = "" if text else "未能从PDF中抽取文本，可能是扫描件。"
                 resume.parsed_at = timezone.now()
                 resume.save()
-                analysis_payload = build_analysis(task)
+                analysis_payload = build_analysis(task, self.llm)
                 analysis = task.analysis
                 for field, value in analysis_payload.items():
                     setattr(analysis, field, value)
                 analysis.save()
                 if not task.regular_question_sets.exists():
-                    generate_regular_questions(task)
+                    generate_regular_questions(task, self.llm)
                 if task.development_task_status != "not_enabled" and not task.development_tasks.exists():
-                    generate_development_task(task)
+                    generate_development_task(task, self.llm)
                 task.overall_status = "pending_verification_confirmation"
                 task.regular_question_status = "generated"
-                task.save(update_fields=["overall_status", "regular_question_status", "updated_at"])
+                if task.development_task_status == "pending_generation":
+                    task.development_task_status = "reviewing"
+                task.save(update_fields=["overall_status", "regular_question_status", "development_task_status", "updated_at"])
                 result = analysis_payload
             elif job.job_type == "generate_regular_questions":
-                question_set = generate_regular_questions(task)
+                question_set = generate_regular_questions(task, self.llm)
                 task.regular_question_status = "generated"
                 task.save(update_fields=["regular_question_status", "updated_at"])
                 result = {"question_set_id": question_set.id}
             elif job.job_type == "generate_development_task":
-                dev_task = generate_development_task(task)
+                dev_task = generate_development_task(task, self.llm)
                 task.development_task_status = "reviewing"
                 task.save(update_fields=["development_task_status", "updated_at"])
                 result = {"development_task_id": dev_task.id}
+            elif job.job_type == "score_regular_submission":
+                payload = score_submission(task, "regular", self.llm)
+                apply_score(task, "regular", payload)
+                task.regular_question_status = "scored"
+                task.overall_status = "pending_scoring" if task.development_task_status not in {"scored", "not_enabled"} else "pending_report_confirmation"
+                task.save(update_fields=["regular_question_status", "overall_status", "updated_at"])
+                result = payload
+            elif job.job_type == "score_development_submission":
+                payload = score_submission(task, "development", self.llm)
+                apply_score(task, "development", payload)
+                task.development_task_status = "scored"
+                task.overall_status = "pending_report_confirmation" if task.regular_question_status == "scored" else "pending_scoring"
+                task.save(update_fields=["development_task_status", "overall_status", "updated_at"])
+                result = payload
             elif job.job_type == "generate_report":
-                payload = build_report(task)
+                payload = build_report(task, self.llm)
                 evaluation, _ = Evaluation.objects.get_or_create(task=task)
                 evaluation.ai_suggestion = payload["ai_suggestion"]
                 evaluation.skill_evaluations = payload["skill_evaluations"]
+                evaluation.strengths = payload.get("strengths", evaluation.strengths)
+                evaluation.risks = payload.get("risks", evaluation.risks)
+                evaluation.recommendation = payload.get("recommendation", evaluation.recommendation)
                 evaluation.report_markdown = payload["report_markdown"]
                 evaluation.save()
+                task.overall_status = "pending_report_confirmation"
+                task.save(update_fields=["overall_status", "updated_at"])
                 result = payload
             else:
                 result = {"message": "该任务类型已排队，但MVP暂未实现具体处理。"}
