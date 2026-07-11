@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}简历能力匹配｜智能招聘评测系统{% endblock %}
+{% block breadcrumb %}招聘任务 / <strong>简历能力匹配页</strong>{% endblock %}
+{% block content %}
+<section class="title-row">
+  <div>
+    <h1>{{ task.position.name }} / 候选人：{{ task.candidate.name }}</h1>
+    <p>工作年限：{{ task.candidate.work_years|default:"4年" }}　学历：{{ task.candidate.education|default:"本科" }}　当前公司：{{ task.candidate.current_company|default:"某科技公司" }}　岗位级别：{{ task.position.get_job_level_display }}　当前状态：<span class="status amber">待确认</span></p>
+  </div>
+  <div class="button-group">
+    <a class="btn" href="{% url 'enqueue-job' task.pk 'analyze_position_resume' %}">↻ 重新解析</a>
+    <button class="btn">☷ 调整能力项</button>
+    <form method="post">{% csrf_token %}<button class="btn">✓ 确认验证项</button></form>
+    <a class="btn primary" href="{% url 'regular-questions' task.pk %}">生成题目 ›</a>
+  </div>
+</section>
+
+<section class="metric-grid three">
+  <article class="metric-card blue"><span class="metric-icon">◕</span><div><p>岗位匹配度</p><strong>76%</strong></div></article>
+  <article class="metric-card green"><span class="metric-icon">✓</span><div><p>核心能力符合</p><strong>{{ analysis.skill_matches|length|default:4 }}项</strong></div></article>
+  <article class="metric-card purple"><span class="metric-icon">◎</span><div><p>建议重点验证</p><strong>{{ analysis.verification_items|length|default:5 }}项</strong></div></article>
+</section>
+
+<section class="content-grid three">
+  <article class="panel">
+    <h2>岗位核心要求</h2>
+    <table class="data-table compact">
+      <thead><tr><th>能力项</th><th>要求等级</th><th>是否验证</th></tr></thead>
+      <tbody>
+        {% for item in analysis.position_skills %}
+          <tr><td>{{ item.name }}</td><td><span class="status blue-soft">熟练</span></td><td>是</td></tr>
+        {% empty %}
+          <tr><td>Python</td><td><span class="status blue-soft">熟练</span></td><td>是</td></tr>
+          <tr><td>Prompt设计</td><td><span class="status blue-soft">熟练</span></td><td>是</td></tr>
+          <tr><td>RAG</td><td><span class="status blue-soft">掌握</span></td><td>是</td></tr>
+          <tr><td>Agent</td><td><span class="status blue-soft">掌握</span></td><td>是</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </article>
+
+  <article class="panel stacked">
+    <h2>候选人能力判断</h2>
+    {% for item in analysis.skill_matches %}
+      <div class="judgement">
+        <div><strong>{{ item.skill }}</strong><span class="status {% if item.judgment == 'needs_verification' %}amber{% else %}green-soft{% endif %}">{{ item.judgment }}</span></div>
+        <p>{{ item.evidence }}</p>
+      </div>
+    {% empty %}
+      <div class="judgement"><div><strong>Python能力</strong><span class="status green-soft">基本符合</span></div><p>简历中提到使用 Python + FastAPI 开发后端服务。</p></div>
+      <div class="judgement"><div><strong>RAG能力</strong><span class="status amber">重点验证</span></div><p>简历中提到企业知识问答系统，需要验证方法细节。</p></div>
+      <div class="judgement"><div><strong>Agent能力</strong><span class="status red-soft">简历未体现</span></div><p>简历未体现相关经验，建议通过基础题验证。</p></div>
+    {% endfor %}
+  </article>
+
+  <article class="panel">
+    <h2>建议验证项</h2>
+    <table class="data-table compact">
+      <thead><tr><th>验证项</th><th>方式</th><th>优先级</th></tr></thead>
+      <tbody>
+        {% for item in analysis.verification_items %}
+          <tr><td>{{ item.name }}</td><td>{{ item.selected_method }}</td><td><span class="status red-soft">高</span></td></tr>
+        {% empty %}
+          <tr><td>RAG项目真实性</td><td>项目追问</td><td><span class="status red-soft">高</span></td></tr>
+          <tr><td>RAG评估方法</td><td>问答题</td><td><span class="status red-soft">高</span></td></tr>
+          <tr><td>Python工程能力</td><td>代码阅读题</td><td><span class="status amber">中</span></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="info-note">现场开发设计将单独生成并单独交付，不与普通题目混合导出。</div>
+  </article>
+</section>
+
+<section class="panel delivery-panel">
+  <h2>交付建议</h2>
+  <div class="delivery-grid">
+    <div><strong>普通题目交付</strong><p><span class="file-chip">Excel</span><span class="file-chip">Word</span><span class="file-chip">PDF</span></p><small>适合用人部门查看，也可导出候选人版试卷</small></div>
+    <div><strong>现场开发题交付</strong><p><span class="file-chip code">代码题</span></p><small>单独成题，提前发给候选人，线下完成并回收结果</small></div>
+    <div class="right-actions"><a class="btn" href="{% url 'regular-questions' task.pk %}">进入普通题目审核</a><a class="btn primary" href="{% url 'development-task' task.pk %}">进入现场开发题配置</a></div>
+  </div>
+</section>
+{% endblock %}

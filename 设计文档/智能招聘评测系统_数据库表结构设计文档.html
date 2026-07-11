@@ -1,0 +1,1355 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>智能招聘评测系统｜数据库表结构设计文档</title>
+<style>
+:root{
+  --blue:#1769ff;--blue2:#0f52d6;--soft:#eef5ff;--ink:#172033;--muted:#667085;
+  --line:#e5eaf1;--bg:#f6f8fb;--card:#fff;--green:#159966;--orange:#e98424;
+  --shadow:0 10px 30px rgba(35,55,90,.08)
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Arial,sans-serif;line-height:1.7}
+.layout{display:grid;grid-template-columns:275px minmax(0,1fr);min-height:100vh}
+aside{position:sticky;top:0;height:100vh;overflow:auto;background:#fff;border-right:1px solid var(--line);padding:28px 22px}
+.brand{display:flex;gap:12px;align-items:center;margin-bottom:22px}
+.logo{width:40px;height:40px;border-radius:13px;background:linear-gradient(135deg,#0b61ff,#76adff);color:white;display:grid;place-items:center;font-weight:800;box-shadow:0 8px 20px rgba(23,105,255,.25)}
+.brand strong{font-size:17px}
+.brand small{display:block;color:var(--muted)}
+nav{display:flex;flex-direction:column;gap:4px}
+nav a{text-decoration:none;color:#475467;padding:9px 11px;border-radius:10px;font-size:14px}
+nav a:hover{background:var(--soft);color:var(--blue)}
+main{min-width:0}
+.hero{padding:52px 62px 38px;background:radial-gradient(circle at 90% 0%,rgba(23,105,255,.18),transparent 34%),linear-gradient(#fff,#f8fbff);border-bottom:1px solid var(--line)}
+.badge{display:inline-block;padding:6px 11px;border-radius:999px;background:var(--soft);color:var(--blue);font-weight:700;font-size:12px;letter-spacing:.04em}
+h1{font-size:38px;line-height:1.25;margin:16px 0 10px}
+.hero p{max-width:980px;color:var(--muted);font-size:17px;margin:0}
+.meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
+.meta span{background:#fff;border:1px solid var(--line);padding:7px 11px;border-radius:10px;font-size:13px;color:#475467}
+.content{max-width:1480px;margin:0 auto;padding:34px 62px 80px}
+section{margin-bottom:52px;scroll-margin-top:20px}
+h2{font-size:28px;margin:0 0 14px}
+h3{font-size:20px;margin:26px 0 12px}
+.lead{color:var(--muted);margin-top:-4px}
+.card{background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:24px;margin:18px 0}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px}
+.kpi b{display:block;color:var(--blue);font-size:25px}
+.kpi span{color:var(--muted);font-size:13px}
+.flow{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.node{background:#fff;border:1px solid #dbe4f1;border-radius:12px;padding:10px 13px;font-weight:700;font-size:13px}
+.arrow{color:#98a2b3;font-weight:800}
+.callout{padding:17px 19px;border-left:4px solid var(--blue);background:var(--soft);border-radius:14px;margin:18px 0}
+.callout.warn{border-color:var(--orange);background:#fff7ed}
+table{width:100%;border-collapse:collapse;background:#fff;margin:12px 0}
+th,td{border:1px solid var(--line);padding:9px 11px;text-align:left;vertical-align:top;font-size:13px}
+th{background:#f8fafc;color:#344054}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#0d52d9}
+pre{white-space:pre;overflow:auto;background:#101828;color:#f8fafc;border-radius:14px;padding:20px;font-size:12px;line-height:1.55;max-height:760px}
+.table-card{background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);margin:14px 0;overflow:hidden}
+.table-card summary{cursor:pointer;list-style:none;display:grid;grid-template-columns:210px 170px minmax(0,1fr);gap:14px;align-items:center;padding:16px 18px}
+.table-card summary::-webkit-details-marker{display:none}
+.table-card[open] summary{border-bottom:1px solid var(--line);background:#fbfdff}
+.table-no{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--blue);font-weight:700}
+.purpose{color:var(--muted);font-size:13px}
+.detail-body{padding:18px}
+.index-box{background:#f8fafc;border-radius:12px;padding:14px 16px}
+.index-box ul{margin:8px 0 0;padding-left:20px}
+.er{background:#0f172a;color:#e5edf8;border-radius:16px;padding:22px;overflow:auto;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;line-height:1.6}
+.tag{display:inline-block;padding:3px 8px;border-radius:999px;background:var(--soft);color:var(--blue);font-size:12px;font-weight:700}
+footer{border-top:1px solid var(--line);background:#fff;padding:28px 62px 40px;color:var(--muted);font-size:13px}
+@media(max-width:1050px){
+ .layout{grid-template-columns:1fr} aside{position:relative;height:auto;border-right:0;border-bottom:1px solid var(--line)} 
+ .hero,.content{padding-left:26px;padding-right:26px} .grid-2{grid-template-columns:1fr}
+ .table-card summary{grid-template-columns:1fr}
+}
+@media print{
+ aside{display:none} .layout{display:block} .hero,.content{padding-left:20px;padding-right:20px}
+ .table-card{box-shadow:none;break-inside:avoid} details{display:block} details>summary{display:none}
+}
+</style>
+</head>
+<body>
+<div class="layout">
+<aside>
+  <div class="brand"><div class="logo">DB</div><div><strong>智能招聘评测</strong><small>数据库设计 · MVP 1.0</small></div></div>
+  <nav>
+    <a href="#overview">1. 设计概述</a>
+    <a href="#principles">2. 建模原则</a>
+    <a href="#er">3. 表关系</a>
+    <a href="#overview-table">4. 表清单</a>
+    <a href="#dictionary">5. 字段字典</a>
+    <a href="#enums">6. 枚举字典</a>
+    <a href="#state">7. 状态与一致性</a>
+    <a href="#json">8. JSONB结构</a>
+    <a href="#indexes">9. 索引与性能</a>
+    <a href="#security">10. 安全与审计</a>
+    <a href="#sql">11. 建表SQL</a>
+    <a href="#implementation">12. 落地建议</a>
+  </nav>
+</aside>
+
+<main>
+<header class="hero">
+  <span class="badge">DATABASE DESIGN SPEC</span>
+  <h1>智能招聘评测系统<br>数据库表结构设计文档</h1>
+  <p>本设计覆盖招聘评测任务、岗位能力、PDF简历解析、待验证能力、普通题、现场开发题、提交回收、人工评分、AI辅助评分和最终评测报告等完整业务闭环。</p>
+  <div class="meta">
+    <span>数据库：PostgreSQL 15+</span>
+    <span>主键：UUID</span>
+    <span>表数量：20张</span>
+    <span>复杂AI结果：JSONB</span>
+    <span>状态与审计：显式留痕</span>
+  </div>
+</header>
+
+<div class="content">
+<section id="overview">
+  <h2>1. 设计概述</h2>
+  <div class="grid-2">
+    <div class="kpi"><b>1个主任务</b><span>recruitment_task 贯穿整个闭环</span></div>
+    <div class="kpi"><b>2条交付分支</b><span>普通题与现场开发题分别建模</span></div>
+    <div class="kpi"><b>3类证据</b><span>岗位证据、简历证据、评测证据</span></div>
+    <div class="kpi"><b>4个人工关口</b><span>岗位、验证项、题目、报告确认</span></div>
+  </div>
+  <div class="callout">
+    <strong>核心建模思想：</strong>以招聘评测任务为主线，将“岗位要求 → 简历证据 → 待验证能力 → 题目 → 候选人提交 → 评分 → 评测结论”完整关联，保证所有AI判断均可追溯。
+  </div>
+</section>
+
+<section id="principles">
+  <h2>2. 建模原则</h2>
+  <div class="card">
+    <ol>
+      <li><strong>业务主线优先：</strong>所有核心数据均归属 recruitment_task，避免跨任务污染。</li>
+      <li><strong>普通题与开发题分离：</strong>两种交付、回收和评分形式不同，不应共用题目表。</li>
+      <li><strong>关系字段结构化：</strong>状态、负责人、版本、外键、得分使用普通字段。</li>
+      <li><strong>复杂AI结果JSONB：</strong>证据数组、参考答案、评分点、能力评价等使用JSONB。</li>
+      <li><strong>人工确认覆盖AI：</strong>AI建议分与人工确认分同时保存，final_score 为最终结果。</li>
+      <li><strong>版本不可覆盖：</strong>题目集、开发题和报告均以版本保存，历史版本归档。</li>
+      <li><strong>文件统一管理：</strong>简历、答卷、代码包和说明文档均通过 file_asset 引用。</li>
+      <li><strong>关键动作审计：</strong>状态切换、确认、导出、发送、回收和评分写入 task_event_log。</li>
+    </ol>
+  </div>
+</section>
+
+<section id="er">
+  <h2>3. 核心表关系</h2>
+  <div class="er">
+department ──&lt; app_user
+     │
+     └──────&lt; position ──&lt; position_skill
+                           │
+candidate ──&lt; resume ──&lt; resume_project
+    │             │
+    │             └─────────────────────────────┐
+    │                                           │
+    └────────────── recruitment_task ───────────┘
+                         │
+                         ├──&lt; resume_skill_analysis
+                         ├──&lt; verification_item
+                         │        │
+                         │        └──&lt; regular_question
+                         │
+                         ├──&lt; regular_question_set ──&lt; regular_question
+                         ├──&lt; development_task
+                         ├──&lt; candidate_submission ──&lt; submission_file ──&gt; file_asset
+                         │        ├──&lt; question_score
+                         │        └──&lt; development_score
+                         ├──&lt; evaluation_report
+                         └──&lt; task_event_log
+  </div>
+  <div class="callout warn">
+    <strong>关系约束：</strong>同一候选人应聘不同岗位必须创建不同 recruitment_task；同一任务使用固定的 position 版本和 resume 版本，防止后续资料修改影响历史评测结果。
+  </div>
+</section>
+
+<section id="overview-table">
+  <h2>4. 数据表清单</h2>
+  <table>
+    <thead><tr><th>#</th><th>表名</th><th>中文名</th><th>业务域</th><th>重要性</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><code>department</code></td><td>部门表</td><td>基础配置</td><td><span class='tag'>P1</span></td></tr><tr><td>2</td><td><code>app_user</code></td><td>系统用户表</td><td>基础配置</td><td><span class='tag'>P1</span></td></tr><tr><td>3</td><td><code>position</code></td><td>岗位表</td><td>岗位与候选人</td><td><span class='tag'>P0</span></td></tr><tr><td>4</td><td><code>position_skill</code></td><td>岗位能力项表</td><td>岗位与候选人</td><td><span class='tag'>P0</span></td></tr><tr><td>5</td><td><code>candidate</code></td><td>候选人表</td><td>岗位与候选人</td><td><span class='tag'>P0</span></td></tr><tr><td>6</td><td><code>file_asset</code></td><td>文件资产表</td><td>岗位与候选人</td><td><span class='tag'>P0</span></td></tr><tr><td>7</td><td><code>resume</code></td><td>简历表</td><td>岗位与候选人</td><td><span class='tag'>P0</span></td></tr><tr><td>8</td><td><code>recruitment_task</code></td><td>招聘评测任务表</td><td>评测任务与AI分析</td><td><span class='tag'>P0</span></td></tr><tr><td>9</td><td><code>resume_project</code></td><td>简历项目经历表</td><td>评测任务与AI分析</td><td><span class='tag'>P0</span></td></tr><tr><td>10</td><td><code>resume_skill_analysis</code></td><td>简历能力分析表</td><td>评测任务与AI分析</td><td><span class='tag'>P0</span></td></tr><tr><td>11</td><td><code>verification_item</code></td><td>待验证能力表</td><td>评测任务与AI分析</td><td><span class='tag'>P0</span></td></tr><tr><td>12</td><td><code>regular_question_set</code></td><td>普通题目集表</td><td>出题与交付</td><td><span class='tag'>P0</span></td></tr><tr><td>13</td><td><code>regular_question</code></td><td>普通题目表</td><td>出题与交付</td><td><span class='tag'>P0</span></td></tr><tr><td>14</td><td><code>development_task</code></td><td>现场开发题表</td><td>出题与交付</td><td><span class='tag'>P0</span></td></tr><tr><td>15</td><td><code>candidate_submission</code></td><td>候选人提交记录表</td><td>出题与交付</td><td><span class='tag'>P0</span></td></tr><tr><td>16</td><td><code>submission_file</code></td><td>提交文件关联表</td><td>出题与交付</td><td><span class='tag'>P0</span></td></tr><tr><td>17</td><td><code>question_score</code></td><td>普通题单题评分表</td><td>评分与报告</td><td><span class='tag'>P0</span></td></tr><tr><td>18</td><td><code>development_score</code></td><td>现场开发题评分表</td><td>评分与报告</td><td><span class='tag'>P0</span></td></tr><tr><td>19</td><td><code>evaluation_report</code></td><td>最终评测报告表</td><td>评分与报告</td><td><span class='tag'>P0</span></td></tr><tr><td>20</td><td><code>task_event_log</code></td><td>任务事件与审计日志表</td><td>评分与报告</td><td><span class='tag'>P0</span></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="dictionary">
+  <h2>5. 详细字段字典</h2>
+  <p class="lead">点击表头可折叠或展开。字段类型以 PostgreSQL 为准。</p>
+  
+    <details class="table-card" open>
+      <summary><span class="table-no">department</span><strong>部门表</strong><span class="purpose">维护用人部门及组织层级，为岗位、用户和任务提供组织归属。</span></summary>
+      <div class="detail-body">
+        <table>
+          <thead><tr><th>字段</th><th>类型</th><th>约束</th><th>说明</th></tr></thead>
+          <tbody><tr><td><code>id</code></td><td>UUID</td><td>PK</td><td>部门主键</td></tr>
+<tr><td><code>department_code</code></td><td>VARCHAR(64)</td><td>UK, NOT NULL</td><td>部门编码</td></tr>
+<tr><td><code>department_name</code></td><td>VARCHAR(128)</td><td>NOT NULL</td><td>部门名称</td></tr>
+<tr><td><code>parent_id</code></td><td>UUID</td><td>FK→department.id</td><td>上级部门</td></tr>
+<tr><td><code>status</code></td><td>VARCHAR(20)</td><td>CHECK</td><td>enabled / disabled</td></tr>
+<tr><td><code>created_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>创建时间</td></tr>
+<tr><td><code>updated_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>更新时间</td></tr></tbody>
+        </table>
+        <div class="index-box"><strong>索引与约束建议</strong><ul><li>department_code 唯一索引</li><li>parent_id 可按组织树查询</li></ul></div>
+      </div>
+    </details>
+    
+
+    <details class="table-card" open>
+      <summary><span class="table-no">app_user</span><strong>系统用户表</strong><span class="purpose">保存 HR、技术负责人、面试官和管理员账号。</span></summary>
+      <div class="detail-body">
+        <table>
+          <thead><tr><th>字段</th><th>类型</th><th>约束</th><th>说明</th></tr></thead>
+          <tbody><tr><td><code>id</code></td><td>UUID</td><td>PK</td><td>用户主键</td></tr>
+<tr><td><code>username</code></td><td>VARCHAR(64)</td><td>UK, NOT NULL</td><td>登录账号</td></tr>
+<tr><td><code>display_name</code></td><td>VARCHAR(128)</td><td>NOT NULL</td><td>显示姓名</td></tr>
+<tr><td><code>email</code></td><td>VARCHAR(256)</td><td></td><td>邮箱</td></tr>
+<tr><td><code>mobile</code></td><td>VARCHAR(32)</td><td></td><td>手机号</td></tr>
+<tr><td><code>department_id</code></td><td>UUID</td><td>FK→department.id</td><td>所属部门</td></tr>
+<tr><td><code>role_code</code></td><td>VARCHAR(32)</td><td>CHECK</td><td>hr / technical_reviewer / interviewer / admin</td></tr>
+<tr><td><code>status</code></td><td>VARCHAR(20)</td><td>CHECK</td><td>enabled / disabled</td></tr>
+<tr><td><code>created_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>创建时间</td></tr>
+<tr><td><code>updated_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>更新时间</td></tr></tbody>
+        </table>
+        <div class="index-box"><strong>索引与约束建议</strong><ul><li>username 唯一索引</li><li>(department_id, role_code, status) 组合索引</li></ul></div>
+      </div>
+    </details>
+    
+
+    <details class="table-card" open>
+      <summary><span class="table-no">position</span><strong>岗位表</strong><span class="purpose">保存岗位基础信息、原始 JD、结构化摘要和版本状态。</span></summary>
+      <div class="detail-body">
+        <table>
+          <thead><tr><th>字段</th><th>类型</th><th>约束</th><th>说明</th></tr></thead>
+          <tbody><tr><td><code>id</code></td><td>UUID</td><td>PK</td><td>岗位主键</td></tr>
+<tr><td><code>position_code</code></td><td>VARCHAR(64)</td><td>UK, NOT NULL</td><td>岗位编码</td></tr>
+<tr><td><code>position_name</code></td><td>VARCHAR(128)</td><td>NOT NULL</td><td>岗位名称</td></tr>
+<tr><td><code>department_id</code></td><td>UUID</td><td>FK→department.id</td><td>用人部门</td></tr>
+<tr><td><code>job_level</code></td><td>VARCHAR(20)</td><td>CHECK</td><td>junior / middle / senior / expert</td></tr>
+<tr><td><code>raw_job_description</code></td><td>TEXT</td><td>NOT NULL</td><td>原始岗位要求</td></tr>
+<tr><td><code>position_summary</code></td><td>TEXT</td><td></td><td>AI生成岗位摘要</td></tr>
+<tr><td><code>version</code></td><td>INTEGER</td><td>NOT NULL</td><td>版本号</td></tr>
+<tr><td><code>status</code></td><td>VARCHAR(20)</td><td>CHECK</td><td>draft / confirmed / disabled</td></tr>
+<tr><td><code>created_by</code></td><td>UUID</td><td>FK→app_user.id</td><td>创建人</td></tr>
+<tr><td><code>confirmed_by</code></td><td>UUID</td><td>FK→app_user.id</td><td>确认人</td></tr>
+<tr><td><code>confirmed_at</code></td><td>TIMESTAMPTZ</td><td></td><td>确认时间</td></tr>
+<tr><td><code>created_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>创建时间</td></tr>
+<tr><td><code>updated_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>更新时间</td></tr></tbody>
+        </table>
+        <div class="index-box"><strong>索引与约束建议</strong><ul><li>position_code 唯一索引</li><li>(department_id, status) 组合索引</li></ul></div>
+      </div>
+    </details>
+    
+
+    <details class="table-card" open>
+      <summary><span class="table-no">position_skill</span><strong>岗位能力项表</strong><span class="purpose">将岗位要求拆解为可验证能力、级别、权重和推荐验证方式。</span></summary>
+      <div class="detail-body">
+        <table>
+          <thead><tr><th>字段</th><th>类型</th><th>约束</th><th>说明</th></tr></thead>
+          <tbody><tr><td><code>id</code></td><td>UUID</td><td>PK</td><td>能力项主键</td></tr>
+<tr><td><code>position_id</code></td><td>UUID</td><td>FK→position.id</td><td>所属岗位</td></tr>
+<tr><td><code>skill_code</code></td><td>VARCHAR(64)</td><td>NOT NULL</td><td>能力编码</td></tr>
+<tr><td><code>skill_name</code></td><td>VARCHAR(128)</td><td>NOT NULL</td><td>能力名称</td></tr>
+<tr><td><code>skill_category</code></td><td>VARCHAR(64)</td><td>NOT NULL</td><td>能力分类</td></tr>
+<tr><td><code>requirement_level</code></td><td>VARCHAR(20)</td><td>CHECK</td><td>understand / master / proficient / expert</td></tr>
+<tr><td><code>weight_percent</code></td><td>NUMERIC(5,2)</td><td>CHECK 0~100</td><td>岗位权重</td></tr>
+<tr><td><code>must_verify</code></td><td>BOOLEAN</td><td>NOT NULL</td><td>是否必须验证</td></tr>
+<tr><td><code>preferred_methods</code></td><td>JSONB</td><td>NOT NULL</td><td>推荐验证方式数组</td></tr>
+<tr><td><code>requirement_description</code></td><td>TEXT</td><td></td><td>能力说明</td></tr>
+<tr><td><code>sort_no</code></td><td>INTEGER</td><td>NOT NULL</td><td>排序</td></tr>
+<tr><td><code>created_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>创建时间</td></tr>
+<tr><td><code>updated_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>更新时间</td></tr></tbody>
+        </table>
+        <div class="index-box"><strong>索引与约束建议</strong><ul><li>(position_id, skill_code) 唯一</li><li>(position_id, sort_no) 组合索引</li><li>preferred_methods GIN</li></ul></div>
+      </div>
+    </details>
+    
+
+    <details class="table-card" open>
+      <summary><span class="table-no">candidate</span><strong>候选人表</strong><span class="purpose">保存候选人基础资料；同一候选人可参与多个不同岗位评测任务。</span></summary>
+      <div class="detail-body">
+        <table>
+          <thead><tr><th>字段</th><th>类型</th><th>约束</th><th>说明</th></tr></thead>
+          <tbody><tr><td><code>id</code></td><td>UUID</td><td>PK</td><td>候选人主键</td></tr>
+<tr><td><code>candidate_no</code></td><td>VARCHAR(64)</td><td>UK, NOT NULL</td><td>候选人编号</td></tr>
+<tr><td><code>candidate_name</code></td><td>VARCHAR(128)</td><td>NOT NULL</td><td>姓名</td></tr>
+<tr><td><code>work_years</code></td><td>NUMERIC(4,1)</td><td></td><td>工作年限</td></tr>
+<tr><td><code>education</code></td><td>VARCHAR(32)</td><td></td><td>学历</td></tr>
+<tr><td><code>current_company</code></td><td>VARCHAR(128)</td><td></td><td>当前公司</td></tr>
+<tr><td><code>current_position</code></td><td>VARCHAR(128)</td><td></td><td>当前职位</td></tr>
+<tr><td><code>email</code></td><td>VARCHAR(256)</td><td></td><td>邮箱</td></tr>
+<tr><td><code>mobile</code></td><td>VARCHAR(32)</td><td></td><td>电话</td></tr>
+<tr><td><code>source_channel</code></td><td>VARCHAR(64)</td><td></td><td>来源渠道</td></tr>
+<tr><td><code>created_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>创建时间</td></tr>
+<tr><td><code>updated_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>更新时间</td></tr></tbody>
+        </table>
+        <div class="index-box"><strong>索引与约束建议</strong><ul><li>candidate_no 唯一索引</li><li>可按 email/mobile 增加去重索引</li></ul></div>
+      </div>
+    </details>
+    
+
+    <details class="table-card" open>
+      <summary><span class="table-no">file_asset</span><strong>文件资产表</strong><span class="purpose">统一管理简历、答卷、代码包、README、截图和导出文件的存储元数据。</span></summary>
+      <div class="detail-body">
+        <table>
+          <thead><tr><th>字段</th><th>类型</th><th>约束</th><th>说明</th></tr></thead>
+          <tbody><tr><td><code>id</code></td><td>UUID</td><td>PK</td><td>文件主键</td></tr>
+<tr><td><code>storage_provider</code></td><td>VARCHAR(32)</td><td>NOT NULL</td><td>local / minio / oss / s3</td></tr>
+<tr><td><code>bucket_name</code></td><td>VARCHAR(128)</td><td></td><td>桶名称</td></tr>
+<tr><td><code>object_key</code></td><td>VARCHAR(512)</td><td>NOT NULL</td><td>对象存储键</td></tr>
+<tr><td><code>original_file_name</code></td><td>VARCHAR(256)</td><td>NOT NULL</td><td>原始文件名</td></tr>
+<tr><td><code>file_ext</code></td><td>VARCHAR(20)</td><td></td><td>扩展名</td></tr>
+<tr><td><code>mime_type</code></td><td>VARCHAR(128)</td><td></td><td>MIME类型</td></tr>
+<tr><td><code>file_size</code></td><td>BIGINT</td><td>CHECK &gt;=0</td><td>文件大小</td></tr>
+<tr><td><code>sha256</code></td><td>VARCHAR(64)</td><td></td><td>文件摘要</td></tr>
+<tr><td><code>security_level</code></td><td>VARCHAR(20)</td><td>CHECK</td><td>public / internal / confidential</td></tr>
+<tr><td><code>uploaded_by</code></td><td>UUID</td><td>FK→app_user.id</td><td>上传人</td></tr>
+<tr><td><code>created_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>上传时间</td></tr></tbody>
+        </table>
+        <div class="index-box"><strong>索引与约束建议</strong><ul><li>建议 object_key 唯一</li><li>sha256 可用于重复文件检测</li></ul></div>
+      </div>
+    </details>
+    
+
+    <details class="table-card" open>
+      <summary><span class="table-no">resume</span><strong>简历表</strong><span class="purpose">保存候选人每个简历版本及解析状态、原始文本和结构化画像。</span></summary>
+      <div class="detail-body">
+        <table>
+          <thead><tr><th>字段</th><th>类型</th><th>约束</th><th>说明</th></tr></thead>
+          <tbody><tr><td><code>id</code></td><td>UUID</td><td>PK</td><td>简历主键</td></tr>
+<tr><td><code>candidate_id</code></td><td>UUID</td><td>FK→candidate.id</td><td>候选人</td></tr>
+<tr><td><code>file_id</code></td><td>UUID</td><td>FK→file_asset.id</td><td>原始PDF</td></tr>
+<tr><td><code>resume_version</code></td><td>INTEGER</td><td>NOT NULL</td><td>版本号</td></tr>
+<tr><td><code>parse_status</code></td><td>VARCHAR(20)</td><td>CHECK</td><td>pending / processing / success / failed</td></tr>
+<tr><td><code>resume_text</code></td><td>TEXT</td><td></td><td>解析后的全文</td></tr>
+<tr><td><code>parsed_profile</code></td><td>JSONB</td><td>NOT NULL</td><td>基础画像、技能、经历</td></tr>
+<tr><td><code>parse_error</code></td><td>TEXT</td><td></td><td>解析失败原因</td></tr>
+<tr><td><code>parsed_at</code></td><td>TIMESTAMPTZ</td><td></td><td>解析完成时间</td></tr>
+<tr><td><code>created_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>创建时间</td></tr>
+<tr><td><code>updated_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>更新时间</td></tr></tbody>
+        </table>
+        <div class="index-box"><strong>索引与约束建议</strong><ul><li>(candidate_id, resume_version) 唯一</li><li>(candidate_id, parse_status)</li><li>parsed_profile GIN</li></ul></div>
+      </div>
+    </details>
+    
+
+    <details class="table-card" open>
+      <summary><span class="table-no">recruitment_task</span><strong>招聘评测任务表</strong><span class="purpose">整个业务闭环的主表，关联岗位、候选人、简历、负责人和三类状态。</span></summary>
+      <div class="detail-body">
+        <table>
+          <thead><tr><th>字段</th><th>类型</th><th>约束</th><th>说明</th></tr></thead>
+          <tbody><tr><td><code>id</code></td><td>UUID</td><td>PK</td><td>任务主键</td></tr>
+<tr><td><code>task_no</code></td><td>VARCHAR(64)</td><td>UK, NOT NULL</td><td>任务编号</td></tr>
+<tr><td><code>task_name</code></td><td>VARCHAR(256)</td><td>NOT NULL</td><td>任务名称</td></tr>
+<tr><td><code>position_id</code></td><td>UUID</td><td>FK→position.id</td><td>岗位</td></tr>
+<tr><td><code>candidate_id</code></td><td>UUID</td><td>FK→candidate.id</td><td>候选人</td></tr>
+<tr><td><code>resume_id</code></td><td>UUID</td><td>FK→resume.id</td><td>本任务使用的简历版本</td></tr>
+<tr><td><code>department_id</code></td><td>UUID</td><td>FK→department.id</td><td>用人部门</td></tr>
+<tr><td><code>hr_owner_id</code></td><td>UUID</td><td>FK→app_user.id</td><td>HR负责人</td></tr>
+<tr><td><code>technical_owner_id</code></td><td>UUID</td><td>FK→app_user.id</td><td>技术负责人</td></tr>
+<tr><td><code>planned_finish_at</code></td><td>TIMESTAMPTZ</td><td></td><td>计划完成时间</td></tr>
+<tr><td><code>overall_status</code></td><td>VARCHAR(32)</td><td>CHECK</td><td>主任务状态</td></tr>
+<tr><td><code>regular_question_status</code></td><td>VARCHAR(32)</td><td>CHECK</td><td>普通题分支状态</td></tr>
+<tr><td><code>development_task_status</code></td><td>VARCHAR(32)</td><td>CHECK</td><td>现场开发题分支状态</td></tr>
+<tr><td><code>regular_weight_percent</code></td><td>NUMERIC(5,2)</td><td>CHECK 0~100</td><td>普通题权重</td></tr>
+<tr><td><code>development_weight_percent</code></td><td>NUMERIC(5,2)</td><td>CHECK 0~100</td><td>开发题权重</td></tr>
+<tr><td><code>created_by</code></td><td>UUID</td><td>FK→app_user.id</td><td>创建人</td></tr>
+<tr><td><code>created_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>创建时间</td></tr>
+<tr><td><code>updated_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>更新时间</td></tr></tbody>
+        </table>
+        <div class="index-box"><strong>索引与约束建议</strong><ul><li>task_no 唯一</li><li>(overall_status, hr_owner_id, technical_owner_id)</li><li>(candidate_id, position_id)</li><li>updated_at DESC</li></ul></div>
+      </div>
+    </details>
+    
+
+    <details class="table-card" open>
+      <summary><span class="table-no">resume_project</span><strong>简历项目经历表</strong><span class="purpose">保存AI从简历提取出的项目经历和原文证据，支撑后续真实性验证。</span></summary>
+      <div class="detail-body">
+        <table>
+          <thead><tr><th>字段</th><th>类型</th><th>约束</th><th>说明</th></tr></thead>
+          <tbody><tr><td><code>id</code></td><td>UUID</td><td>PK</td><td>项目记录主键</td></tr>
+<tr><td><code>resume_id</code></td><td>UUID</td><td>FK→resume.id</td><td>所属简历</td></tr>
+<tr><td><code>project_name</code></td><td>VARCHAR(256)</td><td></td><td>项目名称</td></tr>
+<tr><td><code>project_period</code></td><td>VARCHAR(128)</td><td></td><td>项目周期</td></tr>
+<tr><td><code>project_role</code></td><td>VARCHAR(128)</td><td></td><td>候选人角色</td></tr>
+<tr><td><code>technologies</code></td><td>JSONB</td><td>NOT NULL</td><td>技术栈</td></tr>
+<tr><td><code>responsibilities</code></td><td>TEXT</td><td></td><td>职责</td></tr>
+<tr><td><code>claimed_result</code></td><td>TEXT</td><td></td><td>宣称成果</td></tr>
+<tr><td><code>evidence_text</code></td><td>TEXT</td><td>NOT NULL</td><td>简历原文</td></tr>
+<tr><td><code>evidence_page</code></td><td>INTEGER</td><td></td><td>页码</td></tr>
+<tr><td><code>sort_no</code></td><td>INTEGER</td><td>NOT NULL</td><td>排序</td></tr>
+<tr><td><code>created_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>创建时间</td></tr></tbody>
+        </table>
+        <div class="index-box"><strong>索引与约束建议</strong><ul><li>resume_id 普通索引</li><li>可增加 technologies GIN</li></ul></div>
+      </div>
+    </details>
+    
+
+    <details class="table-card" open>
+      <summary><span class="table-no">resume_skill_analysis</span><strong>简历能力分析表</strong><span class="purpose">按任务和能力保存简历证据、AI判断、置信度、风险及建议验证方式。</span></summary>
+      <div class="detail-body">
+        <table>
+          <thead><tr><th>字段</th><th>类型</th><th>约束</th><th>说明</th></tr></thead>
+          <tbody><tr><td><code>id</code></td><td>UUID</td><td>PK</td><td>分析主键</td></tr>
+<tr><td><code>task_id</code></td><td>UUID</td><td>FK→recruitment_task.id</td><td>所属任务</td></tr>
+<tr><td><code>position_skill_id</code></td><td>UUID</td><td>FK→position_skill.id</td><td>对应岗位能力</td></tr>
+<tr><td><code>skill_code</code></td><td>VARCHAR(64)</td><td>NOT NULL</td><td>能力编码</td></tr>
+<tr><td><code>skill_name</code></td><td>VARCHAR(128)</td><td>NOT NULL</td><td>能力名称</td></tr>
+<tr><td><code>judgment</code></td><td>VARCHAR(32)</td><td>CHECK</td><td>基本符合/需要验证/描述存疑/未体现/无关</td></tr>
+<tr><td><code>confidence</code></td><td>VARCHAR(16)</td><td>CHECK</td><td>low / medium / high</td></tr>
+<tr><td><code>resume_evidence</code></td><td>JSONB</td><td>NOT NULL</td><td>证据数组，含原文和页码</td></tr>
+<tr><td><code>risk_description</code></td><td>TEXT</td><td></td><td>风险说明</td></tr>
+<tr><td><code>suggested_method</code></td><td>VARCHAR(32)</td><td>CHECK</td><td>建议验证方式</td></tr>
+<tr><td><code>ai_raw_result</code></td><td>JSONB</td><td>NOT NULL</td><td>原始AI结构化结果</td></tr>
+<tr><td><code>manually_confirmed</code></td><td>BOOLEAN</td><td>NOT NULL</td><td>是否人工确认</td></tr>
+<tr><td><code>confirmed_by</code></td><td>UUID</td><td>FK→app_user.id</td><td>确认人</td></tr>
+<tr><td><code>confirmed_at</code></td><td>TIMESTAMPTZ</td><td></td><td>确认时间</td></tr>
+<tr><td><code>created_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>创建时间</td></tr>
+<tr><td><code>updated_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>更新时间</td></tr></tbody>
+        </table>
+        <div class="index-box"><strong>索引与约束建议</strong><ul><li>(task_id, skill_code) 唯一</li><li>(task_id, judgment)</li></ul></div>
+      </div>
+    </details>
+    
+
+    <details class="table-card" open>
+      <summary><span class="table-no">verification_item</span><strong>待验证能力表</strong><span class="purpose">连接岗位/简历分析与题目生成，是出题的直接业务输入。</span></summary>
+      <div class="detail-body">
+        <table>
+          <thead><tr><th>字段</th><th>类型</th><th>约束</th><th>说明</th></tr></thead>
+          <tbody><tr><td><code>id</code></td><td>UUID</td><td>PK</td><td>验证项主键</td></tr>
+<tr><td><code>task_id</code></td><td>UUID</td><td>FK→recruitment_task.id</td><td>所属任务</td></tr>
+<tr><td><code>skill_code</code></td><td>VARCHAR(64)</td><td>NOT NULL</td><td>能力编码</td></tr>
+<tr><td><code>skill_name</code></td><td>VARCHAR(128)</td><td>NOT NULL</td><td>能力名称</td></tr>
+<tr><td><code>source_type</code></td><td>VARCHAR(32)</td><td>CHECK</td><td>来源类型</td></tr>
+<tr><td><code>position_reason</code></td><td>TEXT</td><td></td><td>岗位原因</td></tr>
+<tr><td><code>resume_reason</code></td><td>TEXT</td><td></td><td>简历原因</td></tr>
+<tr><td><code>priority</code></td><td>VARCHAR(16)</td><td>CHECK</td><td>low / medium / high</td></tr>
+<tr><td><code>suggested_method</code></td><td>VARCHAR(32)</td><td>CHECK</td><td>AI建议方式</td></tr>
+<tr><td><code>selected_method</code></td><td>VARCHAR(32)</td><td>CHECK</td><td>人工确认后的方式</td></tr>
+<tr><td><code>status</code></td><td>VARCHAR(20)</td><td>CHECK</td><td>pending / confirmed / removed</td></tr>
+<tr><td><code>sort_no</code></td><td>INTEGER</td><td>NOT NULL</td><td>排序</td></tr>
+<tr><td><code>confirmed_by</code></td><td>UUID</td><td>FK→app_user.id</td><td>确认人</td></tr>
+<tr><td><code>confirmed_at</code></td><td>TIMESTAMPTZ</td><td></td><td>确认时间</td></tr>
+<tr><td><code>created_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>创建时间</td></tr>
+<tr><td><code>updated_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>更新时间</td></tr></tbody>
+        </table>
+        <div class="index-box"><strong>索引与约束建议</strong><ul><li>(task_id, status, priority)</li></ul></div>
+      </div>
+    </details>
+    
+
+    <details class="table-card" open>
+      <summary><span class="table-no">regular_question_set</span><strong>普通题目集表</strong><span class="purpose">管理一套普通试卷的版本、题量、时长、难度和审核状态。</span></summary>
+      <div class="detail-body">
+        <table>
+          <thead><tr><th>字段</th><th>类型</th><th>约束</th><th>说明</th></tr></thead>
+          <tbody><tr><td><code>id</code></td><td>UUID</td><td>PK</td><td>题目集主键</td></tr>
+<tr><td><code>task_id</code></td><td>UUID</td><td>FK→recruitment_task.id</td><td>所属任务</td></tr>
+<tr><td><code>set_name</code></td><td>VARCHAR(256)</td><td>NOT NULL</td><td>题目集名称</td></tr>
+<tr><td><code>version</code></td><td>INTEGER</td><td>NOT NULL</td><td>版本</td></tr>
+<tr><td><code>question_count</code></td><td>INTEGER</td><td>CHECK &gt;=0</td><td>题量</td></tr>
+<tr><td><code>suggested_duration</code></td><td>INTEGER</td><td>CHECK &gt;0</td><td>建议时长（分钟）</td></tr>
+<tr><td><code>difficulty_level</code></td><td>VARCHAR(20)</td><td>CHECK</td><td>岗位难度等级</td></tr>
+<tr><td><code>status</code></td><td>VARCHAR(20)</td><td>CHECK</td><td>generated / reviewing / confirmed / archived</td></tr>
+<tr><td><code>review_owner_id</code></td><td>UUID</td><td>FK→app_user.id</td><td>审核人</td></tr>
+<tr><td><code>reviewed_at</code></td><td>TIMESTAMPTZ</td><td></td><td>审核时间</td></tr>
+<tr><td><code>generation_config</code></td><td>JSONB</td><td>NOT NULL</td><td>生成配置快照</td></tr>
+<tr><td><code>created_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>创建时间</td></tr>
+<tr><td><code>updated_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>更新时间</td></tr></tbody>
+        </table>
+        <div class="index-box"><strong>索引与约束建议</strong><ul><li>(task_id, version) 唯一</li><li>(task_id, status, version DESC)</li></ul></div>
+      </div>
+    </details>
+    
+
+    <details class="table-card" open>
+      <summary><span class="table-no">regular_question</span><strong>普通题目表</strong><span class="purpose">保存基础题/问答题的题干、答案、评分点、证据和审核状态。</span></summary>
+      <div class="detail-body">
+        <table>
+          <thead><tr><th>字段</th><th>类型</th><th>约束</th><th>说明</th></tr></thead>
+          <tbody><tr><td><code>id</code></td><td>UUID</td><td>PK</td><td>题目主键</td></tr>
+<tr><td><code>question_set_id</code></td><td>UUID</td><td>FK→regular_question_set.id</td><td>所属题目集</td></tr>
+<tr><td><code>verification_item_id</code></td><td>UUID</td><td>FK→verification_item.id</td><td>来源验证项</td></tr>
+<tr><td><code>question_no</code></td><td>INTEGER</td><td>NOT NULL</td><td>题号</td></tr>
+<tr><td><code>question_type</code></td><td>VARCHAR(20)</td><td>CHECK</td><td>basic / qa</td></tr>
+<tr><td><code>title</code></td><td>VARCHAR(256)</td><td>NOT NULL</td><td>题目标题</td></tr>
+<tr><td><code>content</code></td><td>TEXT</td><td>NOT NULL</td><td>题干</td></tr>
+<tr><td><code>answer_requirement</code></td><td>TEXT</td><td></td><td>答题要求</td></tr>
+<tr><td><code>skill_code</code></td><td>VARCHAR(64)</td><td>NOT NULL</td><td>考察能力编码</td></tr>
+<tr><td><code>skill_name</code></td><td>VARCHAR(128)</td><td>NOT NULL</td><td>考察能力名称</td></tr>
+<tr><td><code>difficulty</code></td><td>VARCHAR(20)</td><td>CHECK</td><td>basic / medium / hard</td></tr>
+<tr><td><code>score</code></td><td>NUMERIC(6,2)</td><td>CHECK &gt;=0</td><td>分值</td></tr>
+<tr><td><code>suggested_time_minutes</code></td><td>INTEGER</td><td>CHECK &gt;0</td><td>建议用时</td></tr>
+<tr><td><code>reference_answer</code></td><td>JSONB</td><td>NOT NULL</td><td>参考答案</td></tr>
+<tr><td><code>scoring_points</code></td><td>JSONB</td><td>NOT NULL</td><td>评分点</td></tr>
+<tr><td><code>generation_reason</code></td><td>TEXT</td><td>NOT NULL</td><td>出题原因</td></tr>
+<tr><td><code>position_evidence</code></td><td>TEXT</td><td></td><td>岗位证据</td></tr>
+<tr><td><code>resume_evidence</code></td><td>JSONB</td><td>NOT NULL</td><td>简历证据</td></tr>
+<tr><td><code>risk_performance</code></td><td>TEXT</td><td></td><td>风险表现</td></tr>
+<tr><td><code>follow_up_question</code></td><td>TEXT</td><td></td><td>建议追问</td></tr>
+<tr><td><code>review_status</code></td><td>VARCHAR(20)</td><td>CHECK</td><td>pending / confirmed / needs_revision / removed</td></tr>
+<tr><td><code>manually_edited</code></td><td>BOOLEAN</td><td>NOT NULL</td><td>是否人工修改</td></tr>
+<tr><td><code>created_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>创建时间</td></tr>
+<tr><td><code>updated_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>更新时间</td></tr></tbody>
+        </table>
+        <div class="index-box"><strong>索引与约束建议</strong><ul><li>(question_set_id, question_no) 唯一</li><li>(question_set_id, review_status, question_no)</li><li>resume_evidence GIN</li></ul></div>
+      </div>
+    </details>
+    
+
+    <details class="table-card" open>
+      <summary><span class="table-no">development_task</span><strong>现场开发题表</strong><span class="purpose">独立管理现场开发题的版本、题目内容、约束、发送和回收状态。</span></summary>
+      <div class="detail-body">
+        <table>
+          <thead><tr><th>字段</th><th>类型</th><th>约束</th><th>说明</th></tr></thead>
+          <tbody><tr><td><code>id</code></td><td>UUID</td><td>PK</td><td>开发题主键</td></tr>
+<tr><td><code>task_id</code></td><td>UUID</td><td>FK→recruitment_task.id</td><td>所属招聘任务</td></tr>
+<tr><td><code>version</code></td><td>INTEGER</td><td>NOT NULL</td><td>版本</td></tr>
+<tr><td><code>title</code></td><td>VARCHAR(256)</td><td>NOT NULL</td><td>题目名称</td></tr>
+<tr><td><code>business_background</code></td><td>TEXT</td><td>NOT NULL</td><td>业务背景</td></tr>
+<tr><td><code>objective</code></td><td>TEXT</td><td>NOT NULL</td><td>开发目标</td></tr>
+<tr><td><code>task_requirements</code></td><td>JSONB</td><td>NOT NULL</td><td>任务要求</td></tr>
+<tr><td><code>duration_days</code></td><td>INTEGER</td><td>CHECK &gt;0</td><td>开发周期</td></tr>
+<tr><td><code>allow_llm</code></td><td>BOOLEAN</td><td>NOT NULL</td><td>是否允许大模型</td></tr>
+<tr><td><code>allow_internet</code></td><td>BOOLEAN</td><td>NOT NULL</td><td>是否允许联网</td></tr>
+<tr><td><code>delivery_requirements</code></td><td>JSONB</td><td>NOT NULL</td><td>提交要求</td></tr>
+<tr><td><code>acceptance_criteria</code></td><td>JSONB</td><td>NOT NULL</td><td>验收标准</td></tr>
+<tr><td><code>candidate_instruction</code></td><td>TEXT</td><td></td><td>候选人说明</td></tr>
+<tr><td><code>reviewer_guide</code></td><td>TEXT</td><td></td><td>面试官指南</td></tr>
+<tr><td><code>status</code></td><td>VARCHAR(24)</td><td>CHECK</td><td>reviewing / pending_send / in_progress / collected / scored / archived</td></tr>
+<tr><td><code>send_time</code></td><td>TIMESTAMPTZ</td><td></td><td>发送时间</td></tr>
+<tr><td><code>deadline</code></td><td>TIMESTAMPTZ</td><td></td><td>截止时间</td></tr>
+<tr><td><code>returned_at</code></td><td>TIMESTAMPTZ</td><td></td><td>回收时间</td></tr>
+<tr><td><code>created_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>创建时间</td></tr>
+<tr><td><code>updated_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>更新时间</td></tr></tbody>
+        </table>
+        <div class="index-box"><strong>索引与约束建议</strong><ul><li>(task_id, version) 唯一</li><li>(task_id, status, version DESC)</li></ul></div>
+      </div>
+    </details>
+    
+
+    <details class="table-card" open>
+      <summary><span class="table-no">candidate_submission</span><strong>候选人提交记录表</strong><span class="purpose">统一记录普通题答卷与现场开发题提交，并保存答案提取结果。</span></summary>
+      <div class="detail-body">
+        <table>
+          <thead><tr><th>字段</th><th>类型</th><th>约束</th><th>说明</th></tr></thead>
+          <tbody><tr><td><code>id</code></td><td>UUID</td><td>PK</td><td>提交主键</td></tr>
+<tr><td><code>task_id</code></td><td>UUID</td><td>FK→recruitment_task.id</td><td>所属任务</td></tr>
+<tr><td><code>submission_type</code></td><td>VARCHAR(20)</td><td>CHECK</td><td>regular / development</td></tr>
+<tr><td><code>question_set_id</code></td><td>UUID</td><td>FK→regular_question_set.id</td><td>普通题目集</td></tr>
+<tr><td><code>development_task_id</code></td><td>UUID</td><td>FK→development_task.id</td><td>现场开发题</td></tr>
+<tr><td><code>submitted_at</code></td><td>TIMESTAMPTZ</td><td></td><td>提交时间</td></tr>
+<tr><td><code>uploaded_by</code></td><td>UUID</td><td>FK→app_user.id</td><td>系统上传人</td></tr>
+<tr><td><code>status</code></td><td>VARCHAR(20)</td><td>CHECK</td><td>submitted / missing / needs_supplement / accepted</td></tr>
+<tr><td><code>integrity_note</code></td><td>TEXT</td><td></td><td>完整性说明</td></tr>
+<tr><td><code>extracted_answers</code></td><td>JSONB</td><td>NOT NULL</td><td>按题提取的答案</td></tr>
+<tr><td><code>created_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>创建时间</td></tr>
+<tr><td><code>updated_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>更新时间</td></tr></tbody>
+        </table>
+        <div class="index-box"><strong>索引与约束建议</strong><ul><li>(task_id, submission_type, status)</li><li>CHECK确保普通题/开发题外键互斥</li></ul></div>
+      </div>
+    </details>
+    
+
+    <details class="table-card" open>
+      <summary><span class="table-no">submission_file</span><strong>提交文件关联表</strong><span class="purpose">关联提交记录与答卷、代码包、README、截图等文件。</span></summary>
+      <div class="detail-body">
+        <table>
+          <thead><tr><th>字段</th><th>类型</th><th>约束</th><th>说明</th></tr></thead>
+          <tbody><tr><td><code>id</code></td><td>UUID</td><td>PK</td><td>关联主键</td></tr>
+<tr><td><code>submission_id</code></td><td>UUID</td><td>FK→candidate_submission.id</td><td>提交记录</td></tr>
+<tr><td><code>file_id</code></td><td>UUID</td><td>FK→file_asset.id</td><td>文件</td></tr>
+<tr><td><code>file_role</code></td><td>VARCHAR(32)</td><td>CHECK</td><td>answer_sheet / source_code / readme / screenshot / design_doc / other</td></tr>
+<tr><td><code>created_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>创建时间</td></tr></tbody>
+        </table>
+        <div class="index-box"><strong>索引与约束建议</strong><ul><li>(submission_id, file_id) 唯一</li><li>submission_id 普通索引</li></ul></div>
+      </div>
+    </details>
+    
+
+    <details class="table-card" open>
+      <summary><span class="table-no">question_score</span><strong>普通题单题评分表</strong><span class="purpose">保存每道题的AI建议、人工确认和最终得分。</span></summary>
+      <div class="detail-body">
+        <table>
+          <thead><tr><th>字段</th><th>类型</th><th>约束</th><th>说明</th></tr></thead>
+          <tbody><tr><td><code>id</code></td><td>UUID</td><td>PK</td><td>评分主键</td></tr>
+<tr><td><code>task_id</code></td><td>UUID</td><td>FK→recruitment_task.id</td><td>所属任务</td></tr>
+<tr><td><code>submission_id</code></td><td>UUID</td><td>FK→candidate_submission.id</td><td>普通题提交</td></tr>
+<tr><td><code>question_id</code></td><td>UUID</td><td>FK→regular_question.id</td><td>题目</td></tr>
+<tr><td><code>max_score</code></td><td>NUMERIC(6,2)</td><td>CHECK &gt;=0</td><td>满分</td></tr>
+<tr><td><code>ai_suggested_score</code></td><td>NUMERIC(6,2)</td><td>CHECK &gt;=0</td><td>AI建议分</td></tr>
+<tr><td><code>ai_reason</code></td><td>TEXT</td><td></td><td>AI评分理由</td></tr>
+<tr><td><code>reviewer_score</code></td><td>NUMERIC(6,2)</td><td>CHECK &gt;=0</td><td>人工评分</td></tr>
+<tr><td><code>reviewer_comment</code></td><td>TEXT</td><td></td><td>人工备注</td></tr>
+<tr><td><code>final_score</code></td><td>NUMERIC(6,2)</td><td>CHECK &gt;=0</td><td>最终得分</td></tr>
+<tr><td><code>confirmed_by</code></td><td>UUID</td><td>FK→app_user.id</td><td>确认人</td></tr>
+<tr><td><code>confirmed_at</code></td><td>TIMESTAMPTZ</td><td></td><td>确认时间</td></tr>
+<tr><td><code>created_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>创建时间</td></tr>
+<tr><td><code>updated_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>更新时间</td></tr></tbody>
+        </table>
+        <div class="index-box"><strong>索引与约束建议</strong><ul><li>(submission_id, question_id) 唯一</li><li>task_id 索引</li></ul></div>
+      </div>
+    </details>
+    
+
+    <details class="table-card" open>
+      <summary><span class="table-no">development_score</span><strong>现场开发题评分表</strong><span class="purpose">按评分维度保存开发题AI建议、人工确认和最终得分。</span></summary>
+      <div class="detail-body">
+        <table>
+          <thead><tr><th>字段</th><th>类型</th><th>约束</th><th>说明</th></tr></thead>
+          <tbody><tr><td><code>id</code></td><td>UUID</td><td>PK</td><td>评分主键</td></tr>
+<tr><td><code>task_id</code></td><td>UUID</td><td>FK→recruitment_task.id</td><td>所属任务</td></tr>
+<tr><td><code>submission_id</code></td><td>UUID</td><td>FK→candidate_submission.id</td><td>开发题提交</td></tr>
+<tr><td><code>development_task_id</code></td><td>UUID</td><td>FK→development_task.id</td><td>开发题</td></tr>
+<tr><td><code>dimension_code</code></td><td>VARCHAR(64)</td><td>NOT NULL</td><td>评分维度编码</td></tr>
+<tr><td><code>dimension_name</code></td><td>VARCHAR(128)</td><td>NOT NULL</td><td>评分维度名称</td></tr>
+<tr><td><code>max_score</code></td><td>NUMERIC(6,2)</td><td>CHECK &gt;=0</td><td>满分</td></tr>
+<tr><td><code>ai_suggested_score</code></td><td>NUMERIC(6,2)</td><td>CHECK &gt;=0</td><td>AI建议分</td></tr>
+<tr><td><code>ai_reason</code></td><td>TEXT</td><td></td><td>AI理由</td></tr>
+<tr><td><code>reviewer_score</code></td><td>NUMERIC(6,2)</td><td>CHECK &gt;=0</td><td>人工评分</td></tr>
+<tr><td><code>reviewer_comment</code></td><td>TEXT</td><td></td><td>人工备注</td></tr>
+<tr><td><code>final_score</code></td><td>NUMERIC(6,2)</td><td>CHECK &gt;=0</td><td>最终得分</td></tr>
+<tr><td><code>sort_no</code></td><td>INTEGER</td><td>NOT NULL</td><td>排序</td></tr>
+<tr><td><code>confirmed_by</code></td><td>UUID</td><td>FK→app_user.id</td><td>确认人</td></tr>
+<tr><td><code>confirmed_at</code></td><td>TIMESTAMPTZ</td><td></td><td>确认时间</td></tr>
+<tr><td><code>created_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>创建时间</td></tr>
+<tr><td><code>updated_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>更新时间</td></tr></tbody>
+        </table>
+        <div class="index-box"><strong>索引与约束建议</strong><ul><li>(submission_id, dimension_code) 唯一</li><li>task_id 索引</li></ul></div>
+      </div>
+    </details>
+    
+
+    <details class="table-card" open>
+      <summary><span class="table-no">evaluation_report</span><strong>最终评测报告表</strong><span class="purpose">保存最终分数、能力评价、优势风险、面试重点和推荐结论。</span></summary>
+      <div class="detail-body">
+        <table>
+          <thead><tr><th>字段</th><th>类型</th><th>约束</th><th>说明</th></tr></thead>
+          <tbody><tr><td><code>id</code></td><td>UUID</td><td>PK</td><td>报告主键</td></tr>
+<tr><td><code>task_id</code></td><td>UUID</td><td>FK→recruitment_task.id</td><td>所属任务</td></tr>
+<tr><td><code>report_version</code></td><td>INTEGER</td><td>NOT NULL</td><td>报告版本</td></tr>
+<tr><td><code>regular_score</code></td><td>NUMERIC(6,2)</td><td></td><td>普通题得分</td></tr>
+<tr><td><code>development_score</code></td><td>NUMERIC(6,2)</td><td></td><td>开发题得分</td></tr>
+<tr><td><code>final_score</code></td><td>NUMERIC(6,2)</td><td></td><td>综合得分</td></tr>
+<tr><td><code>skill_evaluations</code></td><td>JSONB</td><td>NOT NULL</td><td>能力评价数组</td></tr>
+<tr><td><code>strengths</code></td><td>JSONB</td><td>NOT NULL</td><td>优势</td></tr>
+<tr><td><code>risks</code></td><td>JSONB</td><td>NOT NULL</td><td>风险</td></tr>
+<tr><td><code>interview_focus</code></td><td>JSONB</td><td>NOT NULL</td><td>后续面试重点</td></tr>
+<tr><td><code>recommendation</code></td><td>VARCHAR(32)</td><td>CHECK</td><td>next_round / focused_retest / not_next_round</td></tr>
+<tr><td><code>conclusion_text</code></td><td>TEXT</td><td></td><td>综合结论</td></tr>
+<tr><td><code>status</code></td><td>VARCHAR(20)</td><td>CHECK</td><td>draft / pending_confirmation / confirmed / archived</td></tr>
+<tr><td><code>generated_by_ai</code></td><td>BOOLEAN</td><td>NOT NULL</td><td>是否AI生成</td></tr>
+<tr><td><code>confirmed_by</code></td><td>UUID</td><td>FK→app_user.id</td><td>确认人</td></tr>
+<tr><td><code>confirmed_at</code></td><td>TIMESTAMPTZ</td><td></td><td>确认时间</td></tr>
+<tr><td><code>created_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>创建时间</td></tr>
+<tr><td><code>updated_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>更新时间</td></tr></tbody>
+        </table>
+        <div class="index-box"><strong>索引与约束建议</strong><ul><li>(task_id, report_version) 唯一</li><li>(task_id, status, report_version DESC)</li><li>skill_evaluations GIN</li></ul></div>
+      </div>
+    </details>
+    
+
+    <details class="table-card" open>
+      <summary><span class="table-no">task_event_log</span><strong>任务事件与审计日志表</strong><span class="purpose">记录任务状态变化、人工确认、导出、发送、回收和评分等关键行为。</span></summary>
+      <div class="detail-body">
+        <table>
+          <thead><tr><th>字段</th><th>类型</th><th>约束</th><th>说明</th></tr></thead>
+          <tbody><tr><td><code>id</code></td><td>UUID</td><td>PK</td><td>事件主键</td></tr>
+<tr><td><code>task_id</code></td><td>UUID</td><td>FK→recruitment_task.id</td><td>所属任务</td></tr>
+<tr><td><code>event_type</code></td><td>VARCHAR(64)</td><td>NOT NULL</td><td>事件类型</td></tr>
+<tr><td><code>operator_id</code></td><td>UUID</td><td>FK→app_user.id</td><td>操作人</td></tr>
+<tr><td><code>from_status</code></td><td>VARCHAR(64)</td><td></td><td>变更前状态</td></tr>
+<tr><td><code>to_status</code></td><td>VARCHAR(64)</td><td></td><td>变更后状态</td></tr>
+<tr><td><code>event_data</code></td><td>JSONB</td><td>NOT NULL</td><td>事件上下文</td></tr>
+<tr><td><code>created_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>发生时间</td></tr></tbody>
+        </table>
+        <div class="index-box"><strong>索引与约束建议</strong><ul><li>(task_id, created_at DESC)</li><li>event_type 可按审计需要增加索引</li></ul></div>
+      </div>
+    </details>
+    
+</section>
+
+<section id="enums">
+  <h2>6. 枚举与字典值</h2>
+  <table>
+    <thead><tr><th>字段/字典</th><th>数据库值</th><th>业务含义</th></tr></thead>
+    <tbody><tr><td><code>job_level</code></td><td>junior / middle / senior / expert</td><td>初级 / 中级 / 高级 / 专家</td></tr>
+<tr><td><code>requirement_level</code></td><td>understand / master / proficient / expert</td><td>了解 / 掌握 / 熟练 / 精通</td></tr>
+<tr><td><code>overall_status</code></td><td>draft, pending_analysis, pending_verification_confirmation, pending_question_review, pending_delivery, candidate_in_progress, pending_collection, pending_scoring, pending_report_confirmation, completed, cancelled</td><td>主任务完整生命周期</td></tr>
+<tr><td><code>regular_question_status</code></td><td>not_generated, generated, reviewing, confirmed, exported, collected, scored</td><td>普通题分支</td></tr>
+<tr><td><code>development_task_status</code></td><td>not_enabled, pending_generation, reviewing, pending_send, in_progress, collected, scored</td><td>现场开发题分支</td></tr>
+<tr><td><code>judgment</code></td><td>basically_matched, needs_verification, description_doubtful, not_mentioned, irrelevant</td><td>基本符合 / 需要验证 / 描述存疑 / 简历未体现 / 与岗位无关</td></tr>
+<tr><td><code>verification_method</code></td><td>basic_question / qa_question / development_task / interview_followup</td><td>基础题 / 问答题 / 现场开发题 / 面试追问</td></tr>
+<tr><td><code>priority</code></td><td>low / medium / high</td><td>低 / 中 / 高</td></tr>
+<tr><td><code>recommendation</code></td><td>next_round / focused_retest / not_next_round</td><td>进入下一轮 / 重点复试 / 暂不进入下一轮</td></tr></tbody>
+  </table>
+</section>
+
+<section id="state">
+  <h2>7. 状态机与一致性规则</h2>
+  <h3>7.1 主任务状态</h3>
+  <div class="flow">
+    <span class="node">draft</span><span class="arrow">→</span>
+    <span class="node">pending_analysis</span><span class="arrow">→</span>
+    <span class="node">pending_verification_confirmation</span><span class="arrow">→</span>
+    <span class="node">pending_question_review</span><span class="arrow">→</span>
+    <span class="node">pending_delivery</span><span class="arrow">→</span>
+    <span class="node">candidate_in_progress</span><span class="arrow">→</span>
+    <span class="node">pending_collection</span><span class="arrow">→</span>
+    <span class="node">pending_scoring</span><span class="arrow">→</span>
+    <span class="node">pending_report_confirmation</span><span class="arrow">→</span>
+    <span class="node">completed</span>
+  </div>
+  <h3>7.2 分支完成规则</h3>
+  <table>
+    <thead><tr><th>场景</th><th>主任务可进入 completed 的条件</th></tr></thead>
+    <tbody>
+      <tr><td>未启用现场开发题</td><td>普通题已评分 + 报告已确认</td></tr>
+      <tr><td>启用现场开发题</td><td>普通题已评分 + 开发题已评分 + 报告已确认</td></tr>
+      <tr><td>取消任务</td><td>overall_status = cancelled；分支状态保持历史值，不再推进</td></tr>
+    </tbody>
+  </table>
+  <h3>7.3 数据一致性</h3>
+  <ul>
+    <li>普通题提交必须关联 question_set_id，且 development_task_id 为空。</li>
+    <li>开发题提交必须关联 development_task_id，且 question_set_id 为空。</li>
+    <li>人工确认后 final_score 应等于 reviewer_score；未人工确认前可为空。</li>
+    <li>同一任务同一时间只允许一个 confirmed 普通题目集版本和一个有效开发题版本。</li>
+    <li>报告使用的权重总和应为100%；未启用开发题时普通题权重按100%计算。</li>
+  </ul>
+</section>
+
+<section id="json">
+  <h2>8. 关键 JSONB 结构建议</h2>
+  <h3>8.1 resume_evidence</h3>
+<pre>[
+  {
+    "text": "使用LangChain和Milvus搭建企业知识库问答系统",
+    "page": 2,
+    "project_name": "企业知识库问答系统",
+    "evidence_type": "project_experience"
+  }
+]</pre>
+  <h3>8.2 scoring_points</h3>
+<pre>[
+  {"point": "识别SQL注入风险", "score": 2},
+  {"point": "提出参数化查询", "score": 2},
+  {"point": "说明输入校验不能替代参数化查询", "score": 1}
+]</pre>
+  <h3>8.3 skill_evaluations</h3>
+<pre>[
+  {
+    "skill_code": "RAG",
+    "skill_name": "RAG开发",
+    "rating": "一般",
+    "score": 72,
+    "evidence": [
+      {"source": "question", "id": "Q-008"},
+      {"source": "development_dimension", "code": "prompt_rag_design"}
+    ],
+    "interpretation": "具备基础实践，但效果评估方法不够系统"
+  }
+]</pre>
+</section>
+
+<section id="indexes">
+  <h2>9. 索引、性能与数据量建议</h2>
+  <div class="card">
+    <ul>
+      <li><strong>任务列表：</strong>优先使用 (overall_status, hr_owner_id, technical_owner_id) 与 updated_at DESC。</li>
+      <li><strong>待办查询：</strong>verification_item、question_set、development_task 均按 task_id + status 建组合索引。</li>
+      <li><strong>证据检索：</strong>JSONB 字段仅在确有检索需求时启用 GIN，避免无效写放大。</li>
+      <li><strong>文件表：</strong>建议 object_key 唯一；sha256 用于重复文件识别和完整性验证。</li>
+      <li><strong>审计日志：</strong>task_event_log 按 task_id + created_at DESC 查询，后期数据量大可按月分区。</li>
+      <li><strong>归档策略：</strong>历史题目集、开发题、报告使用 archived 状态，不物理删除。</li>
+    </ul>
+  </div>
+</section>
+
+<section id="security">
+  <h2>10. 安全、隐私与审计</h2>
+  <table>
+    <thead><tr><th>风险</th><th>设计要求</th></tr></thead>
+    <tbody>
+      <tr><td>简历个人信息泄露</td><td>文件私有桶、短期签名URL、访问审计、字段脱敏展示。</td></tr>
+      <tr><td>答案或评分标准误发</td><td>候选人版与用人部门版分开生成；导出事件写 task_event_log。</td></tr>
+      <tr><td>AI结果被覆盖</td><td>保存 ai_raw_result、人工确认字段和确认人，不直接覆盖原始AI结果。</td></tr>
+      <tr><td>历史版本不可追溯</td><td>题目集、开发题、报告均以版本记录；历史版本归档。</td></tr>
+      <tr><td>文件篡改</td><td>file_asset 保存 sha256 和文件大小；回收时进行完整性校验。</td></tr>
+      <tr><td>越权查看</td><td>按角色、部门、任务负责人进行数据行级权限控制。</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="sql">
+  <h2>11. PostgreSQL 建表 SQL</h2>
+  <p class="lead">以下脚本与独立 SQL 文件内容一致，可直接用于初始化开发数据库。</p>
+  <pre>-- ============================================================
+-- 智能招聘评测系统 PostgreSQL 15+ 建表脚本（MVP 1.0）
+-- 说明：
+-- 1. 使用 UUID 主键；
+-- 2. 复杂 AI 输出使用 JSONB；
+-- 3. 关键状态使用 VARCHAR + CHECK，便于演进；
+-- 4. 文件统一由 file_asset 管理；
+-- 5. 关键人工动作通过 task_event_log 留痕。
+-- ============================================================
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- 更新时间触发器
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 1. 部门
+CREATE TABLE department (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  department_code   VARCHAR(64) NOT NULL UNIQUE,
+  department_name   VARCHAR(128) NOT NULL,
+  parent_id         UUID REFERENCES department(id),
+  status            VARCHAR(20) NOT NULL DEFAULT &#x27;enabled&#x27;
+                    CHECK (status IN (&#x27;enabled&#x27;,&#x27;disabled&#x27;)),
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 2. 系统用户
+CREATE TABLE app_user (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  username          VARCHAR(64) NOT NULL UNIQUE,
+  display_name      VARCHAR(128) NOT NULL,
+  email             VARCHAR(256),
+  mobile            VARCHAR(32),
+  department_id     UUID REFERENCES department(id),
+  role_code         VARCHAR(32) NOT NULL
+                    CHECK (role_code IN (&#x27;hr&#x27;,&#x27;technical_reviewer&#x27;,&#x27;interviewer&#x27;,&#x27;admin&#x27;)),
+  status            VARCHAR(20) NOT NULL DEFAULT &#x27;enabled&#x27;
+                    CHECK (status IN (&#x27;enabled&#x27;,&#x27;disabled&#x27;)),
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 3. 岗位
+CREATE TABLE position (
+  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  position_code         VARCHAR(64) NOT NULL UNIQUE,
+  position_name         VARCHAR(128) NOT NULL,
+  department_id         UUID REFERENCES department(id),
+  job_level             VARCHAR(20) NOT NULL
+                        CHECK (job_level IN (&#x27;junior&#x27;,&#x27;middle&#x27;,&#x27;senior&#x27;,&#x27;expert&#x27;)),
+  raw_job_description   TEXT NOT NULL,
+  position_summary      TEXT,
+  version               INTEGER NOT NULL DEFAULT 1,
+  status                VARCHAR(20) NOT NULL DEFAULT &#x27;draft&#x27;
+                        CHECK (status IN (&#x27;draft&#x27;,&#x27;confirmed&#x27;,&#x27;disabled&#x27;)),
+  created_by            UUID REFERENCES app_user(id),
+  confirmed_by          UUID REFERENCES app_user(id),
+  confirmed_at          TIMESTAMPTZ,
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 4. 岗位能力项
+CREATE TABLE position_skill (
+  id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  position_id             UUID NOT NULL REFERENCES position(id) ON DELETE CASCADE,
+  skill_code              VARCHAR(64) NOT NULL,
+  skill_name              VARCHAR(128) NOT NULL,
+  skill_category          VARCHAR(64) NOT NULL,
+  requirement_level       VARCHAR(20) NOT NULL
+                          CHECK (requirement_level IN (&#x27;understand&#x27;,&#x27;master&#x27;,&#x27;proficient&#x27;,&#x27;expert&#x27;)),
+  weight_percent          NUMERIC(5,2) NOT NULL DEFAULT 0
+                          CHECK (weight_percent &gt;= 0 AND weight_percent &lt;= 100),
+  must_verify             BOOLEAN NOT NULL DEFAULT TRUE,
+  preferred_methods       JSONB NOT NULL DEFAULT &#x27;[]&#x27;::jsonb,
+  requirement_description TEXT,
+  sort_no                 INTEGER NOT NULL DEFAULT 0,
+  created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(position_id, skill_code)
+);
+
+-- 5. 候选人
+CREATE TABLE candidate (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  candidate_no        VARCHAR(64) NOT NULL UNIQUE,
+  candidate_name      VARCHAR(128) NOT NULL,
+  work_years          NUMERIC(4,1),
+  education           VARCHAR(32),
+  current_company     VARCHAR(128),
+  current_position    VARCHAR(128),
+  email               VARCHAR(256),
+  mobile              VARCHAR(32),
+  source_channel      VARCHAR(64),
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 6. 文件资产
+CREATE TABLE file_asset (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  storage_provider    VARCHAR(32) NOT NULL DEFAULT &#x27;local&#x27;,
+  bucket_name         VARCHAR(128),
+  object_key          VARCHAR(512) NOT NULL,
+  original_file_name  VARCHAR(256) NOT NULL,
+  file_ext            VARCHAR(20),
+  mime_type           VARCHAR(128),
+  file_size           BIGINT NOT NULL DEFAULT 0 CHECK (file_size &gt;= 0),
+  sha256              VARCHAR(64),
+  security_level      VARCHAR(20) NOT NULL DEFAULT &#x27;internal&#x27;
+                      CHECK (security_level IN (&#x27;public&#x27;,&#x27;internal&#x27;,&#x27;confidential&#x27;)),
+  uploaded_by         UUID REFERENCES app_user(id),
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 7. 简历
+CREATE TABLE resume (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  candidate_id        UUID NOT NULL REFERENCES candidate(id) ON DELETE CASCADE,
+  file_id             UUID NOT NULL REFERENCES file_asset(id),
+  resume_version      INTEGER NOT NULL DEFAULT 1,
+  parse_status        VARCHAR(20) NOT NULL DEFAULT &#x27;pending&#x27;
+                      CHECK (parse_status IN (&#x27;pending&#x27;,&#x27;processing&#x27;,&#x27;success&#x27;,&#x27;failed&#x27;)),
+  resume_text         TEXT,
+  parsed_profile      JSONB NOT NULL DEFAULT &#x27;{}&#x27;::jsonb,
+  parse_error         TEXT,
+  parsed_at           TIMESTAMPTZ,
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(candidate_id, resume_version)
+);
+
+-- 8. 招聘评测任务
+CREATE TABLE recruitment_task (
+  id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  task_no                     VARCHAR(64) NOT NULL UNIQUE,
+  task_name                   VARCHAR(256) NOT NULL,
+  position_id                 UUID NOT NULL REFERENCES position(id),
+  candidate_id                UUID NOT NULL REFERENCES candidate(id),
+  resume_id                   UUID NOT NULL REFERENCES resume(id),
+  department_id               UUID REFERENCES department(id),
+  hr_owner_id                 UUID NOT NULL REFERENCES app_user(id),
+  technical_owner_id          UUID NOT NULL REFERENCES app_user(id),
+  planned_finish_at           TIMESTAMPTZ,
+  overall_status              VARCHAR(32) NOT NULL DEFAULT &#x27;draft&#x27;
+                              CHECK (overall_status IN (
+                                &#x27;draft&#x27;,&#x27;pending_analysis&#x27;,&#x27;pending_verification_confirmation&#x27;,
+                                &#x27;pending_question_review&#x27;,&#x27;pending_delivery&#x27;,&#x27;candidate_in_progress&#x27;,
+                                &#x27;pending_collection&#x27;,&#x27;pending_scoring&#x27;,&#x27;pending_report_confirmation&#x27;,
+                                &#x27;completed&#x27;,&#x27;cancelled&#x27;
+                              )),
+  regular_question_status     VARCHAR(32) NOT NULL DEFAULT &#x27;not_generated&#x27;
+                              CHECK (regular_question_status IN (
+                                &#x27;not_generated&#x27;,&#x27;generated&#x27;,&#x27;reviewing&#x27;,&#x27;confirmed&#x27;,
+                                &#x27;exported&#x27;,&#x27;collected&#x27;,&#x27;scored&#x27;
+                              )),
+  development_task_status     VARCHAR(32) NOT NULL DEFAULT &#x27;not_enabled&#x27;
+                              CHECK (development_task_status IN (
+                                &#x27;not_enabled&#x27;,&#x27;pending_generation&#x27;,&#x27;reviewing&#x27;,&#x27;pending_send&#x27;,
+                                &#x27;in_progress&#x27;,&#x27;collected&#x27;,&#x27;scored&#x27;
+                              )),
+  regular_weight_percent      NUMERIC(5,2) NOT NULL DEFAULT 40
+                              CHECK (regular_weight_percent &gt;= 0 AND regular_weight_percent &lt;= 100),
+  development_weight_percent  NUMERIC(5,2) NOT NULL DEFAULT 60
+                              CHECK (development_weight_percent &gt;= 0 AND development_weight_percent &lt;= 100),
+  created_by                  UUID REFERENCES app_user(id),
+  created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 9. 简历项目经历
+CREATE TABLE resume_project (
+  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  resume_id             UUID NOT NULL REFERENCES resume(id) ON DELETE CASCADE,
+  project_name          VARCHAR(256),
+  project_period        VARCHAR(128),
+  project_role          VARCHAR(128),
+  technologies          JSONB NOT NULL DEFAULT &#x27;[]&#x27;::jsonb,
+  responsibilities      TEXT,
+  claimed_result        TEXT,
+  evidence_text         TEXT NOT NULL,
+  evidence_page         INTEGER,
+  sort_no               INTEGER NOT NULL DEFAULT 0,
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 10. 简历能力分析
+CREATE TABLE resume_skill_analysis (
+  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  task_id               UUID NOT NULL REFERENCES recruitment_task(id) ON DELETE CASCADE,
+  position_skill_id     UUID REFERENCES position_skill(id),
+  skill_code            VARCHAR(64) NOT NULL,
+  skill_name            VARCHAR(128) NOT NULL,
+  judgment              VARCHAR(32) NOT NULL
+                        CHECK (judgment IN (
+                          &#x27;basically_matched&#x27;,&#x27;needs_verification&#x27;,
+                          &#x27;description_doubtful&#x27;,&#x27;not_mentioned&#x27;,&#x27;irrelevant&#x27;
+                        )),
+  confidence            VARCHAR(16) NOT NULL
+                        CHECK (confidence IN (&#x27;low&#x27;,&#x27;medium&#x27;,&#x27;high&#x27;)),
+  resume_evidence       JSONB NOT NULL DEFAULT &#x27;[]&#x27;::jsonb,
+  risk_description      TEXT,
+  suggested_method      VARCHAR(32)
+                        CHECK (suggested_method IN (
+                          &#x27;basic_question&#x27;,&#x27;qa_question&#x27;,&#x27;development_task&#x27;,&#x27;interview_followup&#x27;
+                        )),
+  ai_raw_result         JSONB NOT NULL DEFAULT &#x27;{}&#x27;::jsonb,
+  manually_confirmed    BOOLEAN NOT NULL DEFAULT FALSE,
+  confirmed_by          UUID REFERENCES app_user(id),
+  confirmed_at          TIMESTAMPTZ,
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(task_id, skill_code)
+);
+
+-- 11. 待验证能力
+CREATE TABLE verification_item (
+  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  task_id               UUID NOT NULL REFERENCES recruitment_task(id) ON DELETE CASCADE,
+  skill_code            VARCHAR(64) NOT NULL,
+  skill_name            VARCHAR(128) NOT NULL,
+  source_type           VARCHAR(32) NOT NULL
+                        CHECK (source_type IN (&#x27;position&#x27;,&#x27;resume_risk&#x27;,&#x27;position_and_resume&#x27;,&#x27;manual&#x27;)),
+  position_reason       TEXT,
+  resume_reason         TEXT,
+  priority              VARCHAR(16) NOT NULL
+                        CHECK (priority IN (&#x27;low&#x27;,&#x27;medium&#x27;,&#x27;high&#x27;)),
+  suggested_method      VARCHAR(32) NOT NULL
+                        CHECK (suggested_method IN (
+                          &#x27;basic_question&#x27;,&#x27;qa_question&#x27;,&#x27;development_task&#x27;,&#x27;interview_followup&#x27;
+                        )),
+  selected_method       VARCHAR(32) NOT NULL
+                        CHECK (selected_method IN (
+                          &#x27;basic_question&#x27;,&#x27;qa_question&#x27;,&#x27;development_task&#x27;,&#x27;interview_followup&#x27;
+                        )),
+  status                VARCHAR(20) NOT NULL DEFAULT &#x27;pending&#x27;
+                        CHECK (status IN (&#x27;pending&#x27;,&#x27;confirmed&#x27;,&#x27;removed&#x27;)),
+  sort_no               INTEGER NOT NULL DEFAULT 0,
+  confirmed_by          UUID REFERENCES app_user(id),
+  confirmed_at          TIMESTAMPTZ,
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 12. 普通题目集
+CREATE TABLE regular_question_set (
+  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  task_id               UUID NOT NULL REFERENCES recruitment_task(id) ON DELETE CASCADE,
+  set_name              VARCHAR(256) NOT NULL,
+  version               INTEGER NOT NULL DEFAULT 1,
+  question_count        INTEGER NOT NULL DEFAULT 0 CHECK (question_count &gt;= 0),
+  suggested_duration    INTEGER NOT NULL DEFAULT 30 CHECK (suggested_duration &gt; 0),
+  difficulty_level      VARCHAR(20) NOT NULL
+                        CHECK (difficulty_level IN (&#x27;junior&#x27;,&#x27;middle&#x27;,&#x27;senior&#x27;,&#x27;expert&#x27;)),
+  status                VARCHAR(20) NOT NULL DEFAULT &#x27;generated&#x27;
+                        CHECK (status IN (&#x27;generated&#x27;,&#x27;reviewing&#x27;,&#x27;confirmed&#x27;,&#x27;archived&#x27;)),
+  review_owner_id       UUID REFERENCES app_user(id),
+  reviewed_at           TIMESTAMPTZ,
+  generation_config     JSONB NOT NULL DEFAULT &#x27;{}&#x27;::jsonb,
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(task_id, version)
+);
+
+-- 13. 普通题目
+CREATE TABLE regular_question (
+  id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  question_set_id         UUID NOT NULL REFERENCES regular_question_set(id) ON DELETE CASCADE,
+  verification_item_id    UUID REFERENCES verification_item(id),
+  question_no             INTEGER NOT NULL,
+  question_type           VARCHAR(20) NOT NULL
+                          CHECK (question_type IN (&#x27;basic&#x27;,&#x27;qa&#x27;)),
+  title                   VARCHAR(256) NOT NULL,
+  content                 TEXT NOT NULL,
+  answer_requirement      TEXT,
+  skill_code              VARCHAR(64) NOT NULL,
+  skill_name              VARCHAR(128) NOT NULL,
+  difficulty              VARCHAR(20) NOT NULL
+                          CHECK (difficulty IN (&#x27;basic&#x27;,&#x27;medium&#x27;,&#x27;hard&#x27;)),
+  score                   NUMERIC(6,2) NOT NULL DEFAULT 0 CHECK (score &gt;= 0),
+  suggested_time_minutes  INTEGER CHECK (suggested_time_minutes &gt; 0),
+  reference_answer        JSONB NOT NULL DEFAULT &#x27;[]&#x27;::jsonb,
+  scoring_points          JSONB NOT NULL DEFAULT &#x27;[]&#x27;::jsonb,
+  generation_reason       TEXT NOT NULL,
+  position_evidence       TEXT,
+  resume_evidence         JSONB NOT NULL DEFAULT &#x27;[]&#x27;::jsonb,
+  risk_performance        TEXT,
+  follow_up_question      TEXT,
+  review_status           VARCHAR(20) NOT NULL DEFAULT &#x27;pending&#x27;
+                          CHECK (review_status IN (&#x27;pending&#x27;,&#x27;confirmed&#x27;,&#x27;needs_revision&#x27;,&#x27;removed&#x27;)),
+  manually_edited         BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(question_set_id, question_no)
+);
+
+-- 14. 现场开发题
+CREATE TABLE development_task (
+  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  task_id               UUID NOT NULL REFERENCES recruitment_task(id) ON DELETE CASCADE,
+  version               INTEGER NOT NULL DEFAULT 1,
+  title                 VARCHAR(256) NOT NULL,
+  business_background   TEXT NOT NULL,
+  objective             TEXT NOT NULL,
+  task_requirements     JSONB NOT NULL DEFAULT &#x27;[]&#x27;::jsonb,
+  duration_days         INTEGER NOT NULL DEFAULT 3 CHECK (duration_days &gt; 0),
+  allow_llm             BOOLEAN NOT NULL DEFAULT TRUE,
+  allow_internet        BOOLEAN NOT NULL DEFAULT TRUE,
+  delivery_requirements JSONB NOT NULL DEFAULT &#x27;[]&#x27;::jsonb,
+  acceptance_criteria   JSONB NOT NULL DEFAULT &#x27;[]&#x27;::jsonb,
+  candidate_instruction TEXT,
+  reviewer_guide        TEXT,
+  status                VARCHAR(24) NOT NULL DEFAULT &#x27;reviewing&#x27;
+                        CHECK (status IN (&#x27;reviewing&#x27;,&#x27;pending_send&#x27;,&#x27;in_progress&#x27;,&#x27;collected&#x27;,&#x27;scored&#x27;,&#x27;archived&#x27;)),
+  send_time             TIMESTAMPTZ,
+  deadline              TIMESTAMPTZ,
+  returned_at           TIMESTAMPTZ,
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(task_id, version)
+);
+
+-- 15. 候选人提交记录
+CREATE TABLE candidate_submission (
+  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  task_id               UUID NOT NULL REFERENCES recruitment_task(id) ON DELETE CASCADE,
+  submission_type       VARCHAR(20) NOT NULL
+                        CHECK (submission_type IN (&#x27;regular&#x27;,&#x27;development&#x27;)),
+  question_set_id       UUID REFERENCES regular_question_set(id),
+  development_task_id   UUID REFERENCES development_task(id),
+  submitted_at          TIMESTAMPTZ,
+  uploaded_by           UUID REFERENCES app_user(id),
+  status                VARCHAR(20) NOT NULL DEFAULT &#x27;submitted&#x27;
+                        CHECK (status IN (&#x27;submitted&#x27;,&#x27;missing&#x27;,&#x27;needs_supplement&#x27;,&#x27;accepted&#x27;)),
+  integrity_note        TEXT,
+  extracted_answers     JSONB NOT NULL DEFAULT &#x27;{}&#x27;::jsonb,
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (
+    (submission_type = &#x27;regular&#x27; AND question_set_id IS NOT NULL AND development_task_id IS NULL)
+    OR
+    (submission_type = &#x27;development&#x27; AND development_task_id IS NOT NULL AND question_set_id IS NULL)
+  )
+);
+
+-- 16. 提交文件
+CREATE TABLE submission_file (
+  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  submission_id         UUID NOT NULL REFERENCES candidate_submission(id) ON DELETE CASCADE,
+  file_id               UUID NOT NULL REFERENCES file_asset(id),
+  file_role             VARCHAR(32) NOT NULL
+                        CHECK (file_role IN (
+                          &#x27;answer_sheet&#x27;,&#x27;source_code&#x27;,&#x27;readme&#x27;,&#x27;screenshot&#x27;,
+                          &#x27;design_doc&#x27;,&#x27;other&#x27;
+                        )),
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(submission_id, file_id)
+);
+
+-- 17. 普通题单题评分
+CREATE TABLE question_score (
+  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  task_id               UUID NOT NULL REFERENCES recruitment_task(id) ON DELETE CASCADE,
+  submission_id         UUID NOT NULL REFERENCES candidate_submission(id) ON DELETE CASCADE,
+  question_id           UUID NOT NULL REFERENCES regular_question(id) ON DELETE CASCADE,
+  max_score             NUMERIC(6,2) NOT NULL CHECK (max_score &gt;= 0),
+  ai_suggested_score    NUMERIC(6,2) CHECK (ai_suggested_score &gt;= 0),
+  ai_reason             TEXT,
+  reviewer_score        NUMERIC(6,2) CHECK (reviewer_score &gt;= 0),
+  reviewer_comment      TEXT,
+  final_score           NUMERIC(6,2) CHECK (final_score &gt;= 0),
+  confirmed_by          UUID REFERENCES app_user(id),
+  confirmed_at          TIMESTAMPTZ,
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(submission_id, question_id)
+);
+
+-- 18. 现场开发题评分
+CREATE TABLE development_score (
+  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  task_id               UUID NOT NULL REFERENCES recruitment_task(id) ON DELETE CASCADE,
+  submission_id         UUID NOT NULL REFERENCES candidate_submission(id) ON DELETE CASCADE,
+  development_task_id   UUID NOT NULL REFERENCES development_task(id) ON DELETE CASCADE,
+  dimension_code        VARCHAR(64) NOT NULL,
+  dimension_name        VARCHAR(128) NOT NULL,
+  max_score             NUMERIC(6,2) NOT NULL CHECK (max_score &gt;= 0),
+  ai_suggested_score    NUMERIC(6,2) CHECK (ai_suggested_score &gt;= 0),
+  ai_reason             TEXT,
+  reviewer_score        NUMERIC(6,2) CHECK (reviewer_score &gt;= 0),
+  reviewer_comment      TEXT,
+  final_score           NUMERIC(6,2) CHECK (final_score &gt;= 0),
+  sort_no               INTEGER NOT NULL DEFAULT 0,
+  confirmed_by          UUID REFERENCES app_user(id),
+  confirmed_at          TIMESTAMPTZ,
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(submission_id, dimension_code)
+);
+
+-- 19. 最终评测报告
+CREATE TABLE evaluation_report (
+  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  task_id               UUID NOT NULL REFERENCES recruitment_task(id) ON DELETE CASCADE,
+  report_version        INTEGER NOT NULL DEFAULT 1,
+  regular_score         NUMERIC(6,2),
+  development_score     NUMERIC(6,2),
+  final_score           NUMERIC(6,2),
+  skill_evaluations     JSONB NOT NULL DEFAULT &#x27;[]&#x27;::jsonb,
+  strengths             JSONB NOT NULL DEFAULT &#x27;[]&#x27;::jsonb,
+  risks                 JSONB NOT NULL DEFAULT &#x27;[]&#x27;::jsonb,
+  interview_focus       JSONB NOT NULL DEFAULT &#x27;[]&#x27;::jsonb,
+  recommendation        VARCHAR(32)
+                        CHECK (recommendation IN (
+                          &#x27;next_round&#x27;,&#x27;focused_retest&#x27;,&#x27;not_next_round&#x27;
+                        )),
+  conclusion_text       TEXT,
+  status                VARCHAR(20) NOT NULL DEFAULT &#x27;draft&#x27;
+                        CHECK (status IN (&#x27;draft&#x27;,&#x27;pending_confirmation&#x27;,&#x27;confirmed&#x27;,&#x27;archived&#x27;)),
+  generated_by_ai       BOOLEAN NOT NULL DEFAULT TRUE,
+  confirmed_by          UUID REFERENCES app_user(id),
+  confirmed_at          TIMESTAMPTZ,
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(task_id, report_version)
+);
+
+-- 20. 任务事件与审计日志
+CREATE TABLE task_event_log (
+  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  task_id               UUID NOT NULL REFERENCES recruitment_task(id) ON DELETE CASCADE,
+  event_type            VARCHAR(64) NOT NULL,
+  operator_id           UUID REFERENCES app_user(id),
+  from_status           VARCHAR(64),
+  to_status             VARCHAR(64),
+  event_data            JSONB NOT NULL DEFAULT &#x27;{}&#x27;::jsonb,
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- =========================
+-- 索引
+-- =========================
+CREATE INDEX idx_user_department_role
+  ON app_user(department_id, role_code, status);
+
+CREATE INDEX idx_position_department_status
+  ON position(department_id, status);
+
+CREATE INDEX idx_position_skill_position_sort
+  ON position_skill(position_id, sort_no);
+
+CREATE INDEX idx_resume_candidate_status
+  ON resume(candidate_id, parse_status);
+
+CREATE INDEX idx_task_status_owner
+  ON recruitment_task(overall_status, hr_owner_id, technical_owner_id);
+
+CREATE INDEX idx_task_candidate_position
+  ON recruitment_task(candidate_id, position_id);
+
+CREATE INDEX idx_task_updated_at
+  ON recruitment_task(updated_at DESC);
+
+CREATE INDEX idx_resume_analysis_task_judgment
+  ON resume_skill_analysis(task_id, judgment);
+
+CREATE INDEX idx_verification_task_status_priority
+  ON verification_item(task_id, status, priority);
+
+CREATE INDEX idx_question_set_task_status
+  ON regular_question_set(task_id, status, version DESC);
+
+CREATE INDEX idx_question_set_review
+  ON regular_question(question_set_id, review_status, question_no);
+
+CREATE INDEX idx_development_task_task_status
+  ON development_task(task_id, status, version DESC);
+
+CREATE INDEX idx_submission_task_type_status
+  ON candidate_submission(task_id, submission_type, status);
+
+CREATE INDEX idx_question_score_task
+  ON question_score(task_id, confirmed_at);
+
+CREATE INDEX idx_development_score_task
+  ON development_score(task_id, confirmed_at);
+
+CREATE INDEX idx_report_task_status
+  ON evaluation_report(task_id, status, report_version DESC);
+
+CREATE INDEX idx_task_event_log_task_time
+  ON task_event_log(task_id, created_at DESC);
+
+-- JSONB 检索索引（数据量上来后再启用也可以）
+CREATE INDEX idx_position_skill_methods_gin
+  ON position_skill USING GIN(preferred_methods);
+
+CREATE INDEX idx_resume_parsed_profile_gin
+  ON resume USING GIN(parsed_profile);
+
+CREATE INDEX idx_question_resume_evidence_gin
+  ON regular_question USING GIN(resume_evidence);
+
+CREATE INDEX idx_report_skill_eval_gin
+  ON evaluation_report USING GIN(skill_evaluations);
+
+-- =========================
+-- updated_at 触发器
+-- =========================
+DO $$
+DECLARE
+  t TEXT;
+BEGIN
+  FOREACH t IN ARRAY ARRAY[
+    &#x27;department&#x27;,&#x27;app_user&#x27;,&#x27;position&#x27;,&#x27;position_skill&#x27;,&#x27;candidate&#x27;,&#x27;resume&#x27;,
+    &#x27;recruitment_task&#x27;,&#x27;resume_skill_analysis&#x27;,&#x27;verification_item&#x27;,
+    &#x27;regular_question_set&#x27;,&#x27;regular_question&#x27;,&#x27;development_task&#x27;,
+    &#x27;candidate_submission&#x27;,&#x27;question_score&#x27;,&#x27;development_score&#x27;,&#x27;evaluation_report&#x27;
+  ]
+  LOOP
+    EXECUTE format(&#x27;
+      CREATE TRIGGER trg_%I_updated_at
+      BEFORE UPDATE ON %I
+      FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+    &#x27;, t, t);
+  END LOOP;
+END;
+$$;</pre>
+</section>
+
+<section id="implementation">
+  <h2>12. 开发落地建议</h2>
+  <div class="card">
+    <ol>
+      <li><strong>第一阶段：</strong>先实现 department、app_user、position、position_skill、candidate、file_asset、resume、recruitment_task。</li>
+      <li><strong>第二阶段：</strong>实现 resume_project、resume_skill_analysis、verification_item，跑通岗位与简历匹配。</li>
+      <li><strong>第三阶段：</strong>实现普通题目集、普通题和导出。</li>
+      <li><strong>第四阶段：</strong>实现现场开发题、提交记录和文件回收。</li>
+      <li><strong>第五阶段：</strong>实现两类评分、最终报告和审计日志。</li>
+      <li><strong>迁移管理：</strong>建议使用 Flyway、Liquibase 或 Alembic，禁止直接手工修改生产表。</li>
+      <li><strong>ORM建议：</strong>Java 可用 JPA/MyBatis，Python 可用 SQLAlchemy，Node.js 可用 Prisma/TypeORM。</li>
+      <li><strong>事务边界：</strong>任务状态变更、人工确认与事件日志应处于同一事务中。</li>
+    </ol>
+  </div>
+  <div class="callout">
+    <strong>MVP验收基线：</strong>以一个岗位、一位候选人、一份PDF简历为样例，数据库能够完整记录从任务创建、AI分析、待验证项确认、两类题目、结果上传、人工评分到报告确认的全部数据与状态变化。
+  </div>
+</section>
+</div>
+
+<footer>
+  智能招聘评测系统 · 数据库表结构设计文档 · PostgreSQL 15+ · MVP 1.0
+</footer>
+</main>
+</div>
+</body>
+</html>

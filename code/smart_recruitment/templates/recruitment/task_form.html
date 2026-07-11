@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}新建招聘评测任务｜智能招聘评测系统{% endblock %}
+{% block breadcrumb %}招聘任务 / <strong>新建招聘评测任务</strong>{% endblock %}
+{% block content %}
+<section class="title-row">
+  <div>
+    <h1>新建招聘评测任务</h1>
+    <p>填写岗位信息与候选人简历，创建评测任务后系统将自动进入岗位与简历分析。</p>
+  </div>
+</section>
+
+<form method="post" enctype="multipart/form-data">
+  {% csrf_token %}
+  <section class="form-grid">
+    <article class="panel form-panel">
+      <h2><span class="section-icon">▣</span>岗位信息</h2>
+      <div class="field-grid">
+        <label><span>招聘岗位</span>{{ form.position_name }}</label>
+        <label><span>用人部门</span>{{ form.department_name }}</label>
+        <label><span>岗位级别</span>{{ form.job_level }}</label>
+        <label><span>HR负责人</span><input value="{{ user.get_full_name|default:user.username }}" disabled></label>
+        <label><span>技术审核人</span>{{ form.technical_owner }}</label>
+        <label><span>计划完成时间</span>{{ form.planned_finish_at }}</label>
+        <label class="wide"><span>岗位要求</span>{{ form.raw_job_description }}</label>
+      </div>
+      <div class="soft-actions">
+        <button type="button" class="btn">▤ 选择岗位模板</button>
+        <button type="button" class="btn">□ 粘贴JD内容</button>
+      </div>
+    </article>
+
+    <article class="panel form-panel">
+      <h2><span class="section-icon">●</span>候选人信息</h2>
+      <div class="field-grid">
+        <label><span>候选人姓名</span>{{ form.candidate_name }}</label>
+        <label><span>工作年限（可选）</span><input placeholder="如：4年"></label>
+        <label><span>学历（可选）</span><select><option>本科</option><option>硕士</option></select></label>
+        <label><span>当前公司（可选）</span><input placeholder="请输入当前公司"></label>
+        <label><span>邮箱（可选）</span>{{ form.candidate_email }}</label>
+        <label><span>电话（可选）</span>{{ form.candidate_mobile }}</label>
+        <label class="wide"><span>上传PDF简历</span><div class="upload-box">{{ form.resume_file }}<strong>将PDF文件拖拽到此处，或点击上传</strong><small>支持PDF格式，文件大小不超过20MB</small></div></label>
+      </div>
+    </article>
+  </section>
+
+  <section class="auto-flow panel">
+    <strong>创建后将自动执行</strong>
+    <span>岗位要求结构化</span>
+    <span>简历解析</span>
+    <span>待验证能力清单生成</span>
+    <span>进入简历能力匹配页</span>
+    <p>题目不会在本页面直接生成，系统将在待验证项确认后再生成普通题和现场开发题建议。</p>
+  </section>
+
+  <section class="footer-actions">
+    <a class="btn" href="{% url 'task-list' %}">取消</a>
+    <button class="btn" type="submit" name="draft" disabled>保存草稿</button>
+    <button class="btn primary" type="submit">创建并开始分析</button>
+  </section>
+</form>
+{% endblock %}

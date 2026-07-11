@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}任务总览｜智能招聘评测系统{% endblock %}
+{% block breadcrumb %}招聘任务 / <strong>任务总览</strong>{% endblock %}
+{% block content %}
+<section class="title-row">
+  <div>
+    <h1>{{ task.position.name }} / 候选人：{{ task.candidate.name }}</h1>
+    <p>工作年限：{{ task.candidate.work_years|default:"-" }}　学历：{{ task.candidate.education|default:"-" }}　当前状态：<span class="status amber">{{ task.get_overall_status_display }}</span></p>
+  </div>
+  <div class="button-group">
+    <a class="btn" href="{% url 'enqueue-job' task.pk 'analyze_position_resume' %}">↻ 重新解析</a>
+    <a class="btn primary" href="{% url 'task-analysis' task.pk %}">继续处理 ›</a>
+  </div>
+</section>
+
+<section class="metric-grid three">
+  <article class="metric-card blue"><span class="metric-icon">◔</span><div><p>当前阶段</p><strong>{{ task.next_action }}</strong></div></article>
+  <article class="metric-card orange"><span class="metric-icon">▤</span><div><p>普通题状态</p><strong>{{ task.get_regular_question_status_display }}</strong></div></article>
+  <article class="metric-card green"><span class="metric-icon">⌘</span><div><p>开发题状态</p><strong>{{ task.get_development_task_status_display }}</strong></div></article>
+</section>
+
+<section class="content-grid two">
+  <article class="panel">
+    <h2>岗位要求</h2>
+    <p class="preline">{{ task.position.raw_job_description }}</p>
+  </article>
+  <article class="panel">
+    <h2>候选人信息</h2>
+    <dl class="kv-list">
+      <dt>姓名</dt><dd>{{ task.candidate.name }}</dd>
+      <dt>手机</dt><dd>{{ task.candidate.mobile|default:"-" }}</dd>
+      <dt>邮箱</dt><dd>{{ task.candidate.email|default:"-" }}</dd>
+      <dt>简历解析</dt><dd>{{ task.resume.get_parse_status_display }}</dd>
+    </dl>
+  </article>
+</section>
+
+<section class="panel">
+  <h2>后台任务</h2>
+  <table class="data-table">
+    <thead><tr><th>类型</th><th>状态</th><th>进度</th><th>错误</th><th>时间</th></tr></thead>
+    <tbody>
+      {% for job in task.ai_jobs.all %}
+        <tr><td>{{ job.get_job_type_display }}</td><td>{{ job.get_status_display }}</td><td>{{ job.progress }}%</td><td>{{ job.error_message|default:"-" }}</td><td>{{ job.updated_at|date:"Y-m-d H:i" }}</td></tr>
+      {% empty %}
+        <tr><td colspan="5" class="empty">暂无后台任务。</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

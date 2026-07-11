@@ -1,0 +1,61 @@
+{% load static %}
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}智能招聘评测系统{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="logo" href="{% url 'task-list' %}">
+      <span class="logo-mark">A</span>
+      <strong>智能招聘评测</strong>
+    </a>
+    <nav class="side-nav">
+      <a class="active" href="{% url 'task-list' %}"><span class="nav-ico">▣</span>招聘任务</a>
+      <a href="#"><span class="nav-ico">□</span>岗位模板</a>
+      <a href="#"><span class="nav-ico">▤</span>题目模板库</a>
+      <a href="#"><span class="nav-ico">◎</span>评测结果</a>
+      <a href="#"><span class="nav-ico">◌</span>评分规则</a>
+      <a href="/admin/"><span class="nav-ico">⚙</span>系统配置</a>
+    </nav>
+    <div class="collapse">‹‹　收起菜单</div>
+  </aside>
+
+  <div class="shell">
+    <header class="topbar">
+      <div class="breadcrumb">{% block breadcrumb %}智能招聘评测 / 招聘任务{% endblock %}</div>
+      <div class="top-actions">
+        <label class="search">
+          <input type="search" placeholder="搜索候选人、任务、岗位等">
+        </label>
+        <span class="bell">12</span>
+        {% if user.is_authenticated %}
+          <div class="user-pill">
+            <span class="avatar">{{ user.username|slice:":1"|upper }}</span>
+            <strong>{{ user.get_full_name|default:user.username }}</strong>
+            <em>在线</em>
+          </div>
+          <form method="post" action="{% url 'logout' %}">
+            {% csrf_token %}
+            <button class="text-button" type="submit">退出</button>
+          </form>
+        {% endif %}
+      </div>
+    </header>
+
+    <main class="page">
+      {% if messages %}
+        <section class="messages">
+          {% for message in messages %}
+            <div class="message {{ message.tags }}">{{ message }}</div>
+          {% endfor %}
+        </section>
+      {% endif %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</body>
+</html>

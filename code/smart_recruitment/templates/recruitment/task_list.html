@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}招聘任务｜智能招聘评测系统{% endblock %}
+{% block breadcrumb %}智能招聘评测 / <strong>招聘任务</strong>{% endblock %}
+{% block content %}
+<section class="toolbar-row">
+  <span></span>
+  <div class="button-group">
+    <a class="btn primary" href="{% url 'task-create' %}">⊕ 新建评测任务</a>
+    <button class="btn">⇧ 批量导入</button>
+    <button class="btn">▽ 筛选</button>
+    <button class="btn">⇩ 导出列表</button>
+  </div>
+</section>
+
+<section class="metric-grid four">
+  <article class="metric-card blue"><span class="metric-icon">✓</span><div><p>进行中任务</p><strong>{{ tasks|length }}</strong></div></article>
+  <article class="metric-card orange"><span class="metric-icon">≡</span><div><p>待审核题目</p><strong>5</strong></div></article>
+  <article class="metric-card purple"><span class="metric-icon">↺</span><div><p>待回收结果</p><strong>3</strong></div></article>
+  <article class="metric-card green"><span class="metric-icon">▥</span><div><p>本周已完成</p><strong>18</strong></div></article>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <h2>招聘评测任务列表</h2>
+  </div>
+  <nav class="tabs">
+    <a class="active">全部</a><a>待分析</a><a>待审核</a><a>候选人进行中</a><a>待评分</a><a>已完成</a>
+  </nav>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>任务编号</th>
+        <th>岗位</th>
+        <th>候选人</th>
+        <th>用人部门</th>
+        <th>当前阶段</th>
+        <th>普通题状态</th>
+        <th>开发题状态</th>
+        <th>技术负责人</th>
+        <th>更新时间</th>
+        <th>操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for task in tasks %}
+        <tr>
+          <td>{{ task.task_no }}</td>
+          <td>{{ task.position.name }}</td>
+          <td>{{ task.candidate.name }}</td>
+          <td>{{ task.department.name|default:"-" }}</td>
+          <td><span class="status amber">{{ task.get_overall_status_display }}</span></td>
+          <td><span class="status blue-soft">{{ task.get_regular_question_status_display }}</span></td>
+          <td><span class="status green-soft">{{ task.get_development_task_status_display }}</span></td>
+          <td>{{ task.technical_owner.get_full_name|default:task.technical_owner.username }}</td>
+          <td>{{ task.updated_at|date:"Y-m-d H:i" }}</td>
+          <td class="row-actions">
+            <a class="mini" href="{% url 'task-detail' task.pk %}">查看</a>
+            <a class="mini primary-mini" href="{% url 'task-analysis' task.pk %}">{{ task.next_action }}</a>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="10" class="empty">暂无招聘评测任务</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div class="table-foot"><span>共 {{ tasks|length }} 条</span><span>10 条/页</span></div>
+</section>
+
+<section class="bottom-grid">
+  <article class="panel">
+    <h2>流程说明</h2>
+    <div class="flow-steps">
+      <div><b>1</b><strong>创建任务</strong><span>选择岗位和候选人</span></div>
+      <div><b>2</b><strong>简历分析</strong><span>AI 分析简历匹配能力要求</span></div>
+      <div><b>3</b><strong>确认验证项</strong><span>确认核心能力项和验证方式</span></div>
+      <div><b>4</b><strong>题目审核</strong><span>生成并审核题目</span></div>
+      <div><b>5</b><strong>交付候选人</strong><span>发送题目给候选人</span></div>
+      <div><b>6</b><strong>评分报告</strong><span>评分与分析生成评测报告</span></div>
+    </div>
+  </article>
+  <article class="panel todo-panel">
+    <div class="panel-head"><h2>待办提醒</h2><a>查看全部</a></div>
+    <p><span class="dot orange"></span>张某某：普通题待审核 <b>共 1 条</b></p>
+    <p><span class="dot blue"></span>李某某：现场开发题待发送 <b>共 1 条</b></p>
+    <p><span class="dot purple"></span>王某某：评测报告待确认 <b>共 2 条</b></p>
+  </article>
+</section>
+{% endblock %}

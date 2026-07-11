@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>智能招聘评测系统｜轻量技术架构设计文档</title>
+<style>
+:root{
+  --blue:#1769ff;--blue2:#0e52d8;--soft:#eef5ff;--ink:#172033;--muted:#667085;
+  --line:#e5eaf1;--bg:#f6f8fb;--card:#fff;--green:#159966;--orange:#e98424;
+  --red:#df4b52;--purple:#7456df;--shadow:0 10px 30px rgba(35,55,90,.08)
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Arial,sans-serif;
+  line-height:1.72
+}
+.layout{display:grid;grid-template-columns:280px minmax(0,1fr);min-height:100vh}
+aside{
+  position:sticky;top:0;height:100vh;overflow:auto;background:#fff;
+  border-right:1px solid var(--line);padding:28px 22px
+}
+.brand{display:flex;align-items:center;gap:12px;margin-bottom:24px}
+.logo{
+  width:40px;height:40px;border-radius:13px;background:linear-gradient(135deg,#0b61ff,#79aeff);
+  color:#fff;display:grid;place-items:center;font-weight:800;box-shadow:0 8px 20px rgba(23,105,255,.25)
+}
+.brand strong{font-size:17px}
+.brand small{display:block;color:var(--muted)}
+nav{display:flex;flex-direction:column;gap:4px}
+nav a{text-decoration:none;color:#475467;padding:9px 11px;border-radius:10px;font-size:14px}
+nav a:hover{background:var(--soft);color:var(--blue)}
+main{min-width:0}
+.hero{
+  padding:52px 64px 38px;
+  background:radial-gradient(circle at 88% 0%,rgba(23,105,255,.18),transparent 34%),linear-gradient(#fff,#f8fbff);
+  border-bottom:1px solid var(--line)
+}
+.badge{
+  display:inline-block;padding:6px 11px;border-radius:999px;background:var(--soft);
+  color:var(--blue);font-weight:700;font-size:12px;letter-spacing:.04em
+}
+h1{font-size:38px;line-height:1.25;margin:16px 0 10px}
+.hero p{max-width:980px;color:var(--muted);font-size:17px;margin:0}
+.meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
+.meta span{background:#fff;border:1px solid var(--line);padding:7px 11px;border-radius:10px;font-size:13px;color:#475467}
+.content{max-width:1460px;margin:0 auto;padding:34px 64px 80px}
+section{margin-bottom:54px;scroll-margin-top:20px}
+h2{font-size:28px;margin:0 0 14px}
+h3{font-size:20px;margin:26px 0 12px}
+h4{font-size:16px;margin:18px 0 8px}
+.lead{color:var(--muted);margin-top:-4px}
+.grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.card{background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:24px;margin:18px 0}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px}
+.kpi b{display:block;color:var(--blue);font-size:25px}
+.kpi span{color:var(--muted);font-size:13px}
+.callout{padding:17px 19px;border-left:4px solid var(--blue);background:var(--soft);border-radius:14px;margin:18px 0}
+.callout.warn{border-color:var(--orange);background:#fff7ed}
+.callout.good{border-color:var(--green);background:#ecfdf3}
+.callout.red{border-color:var(--red);background:#fff1f2}
+.flow{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:18px 0}
+.node{background:#fff;border:1px solid #dbe4f1;border-radius:12px;padding:10px 13px;font-weight:700;font-size:13px;min-width:145px;text-align:center}
+.arrow{color:#98a2b3;font-weight:800}
+.arch{
+  background:#0f172a;color:#e5edf8;border-radius:18px;padding:24px;overflow:auto;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;line-height:1.65;
+  box-shadow:0 16px 40px rgba(15,23,42,.18)
+}
+table{width:100%;border-collapse:collapse;background:#fff;margin:12px 0}
+th,td{border:1px solid var(--line);padding:10px 12px;text-align:left;vertical-align:top;font-size:13px}
+th{background:#f8fafc;color:#344054}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#0d52d9}
+pre{
+  white-space:pre-wrap;word-break:break-word;overflow:auto;background:#101828;color:#f8fafc;
+  border-radius:14px;padding:20px;font-size:12.5px;line-height:1.6
+}
+.tag{display:inline-block;padding:3px 8px;border-radius:999px;background:var(--soft);color:var(--blue);font-size:12px;font-weight:700}
+.tag.green{background:#ecfdf3;color:var(--green)}
+.tag.orange{background:#fff7ed;color:var(--orange)}
+.tag.red{background:#fff1f2;color:var(--red)}
+.checklist{padding-left:20px}
+.checklist li{margin:6px 0}
+.phase{display:grid;grid-template-columns:130px 1fr;gap:18px;padding:16px 0;border-top:1px solid var(--line)}
+.phase:first-child{border-top:0}
+.phase strong{color:var(--blue)}
+.module-tree{
+  background:#0f172a;color:#e5edf8;border-radius:16px;padding:22px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre;overflow:auto
+}
+footer{border-top:1px solid var(--line);background:#fff;padding:28px 64px 40px;color:var(--muted);font-size:13px}
+@media(max-width:1050px){
+  .layout{grid-template-columns:1fr}
+  aside{position:relative;height:auto;border-right:0;border-bottom:1px solid var(--line)}
+  .hero,.content{padding-left:28px;padding-right:28px}
+  .grid-2,.grid-3{grid-template-columns:1fr}
+}
+@media print{
+  aside{display:none}.layout{display:block}.hero,.content{padding-left:20px;padding-right:20px}
+  .card,.arch{box-shadow:none;break-inside:avoid}
+}
+</style>
+</head>
+<body>
+<div class="layout">
+<aside>
+  <div class="brand"><div class="logo">PY</div><div><strong>智能招聘评测</strong><small>轻量技术架构 · MVP 1.0</small></div></div>
+  <nav>
+    <a href="#overview">1. 技术方案结论</a>
+    <a href="#goals">2. 架构目标</a>
+    <a href="#architecture">3. 总体架构</a>
+    <a href="#selection">4. 技术选型</a>
+    <a href="#modules">5. 应用模块</a>
+    <a href="#workflow">6. AI任务机制</a>
+    <a href="#storage">7. 数据与文件存储</a>
+    <a href="#frontend">8. 页面实现</a>
+    <a href="#exports">9. 文档导出</a>
+    <a href="#security">10. 权限与安全</a>
+    <a href="#deploy">11. 部署方案</a>
+    <a href="#observability">12. 日志与运维</a>
+    <a href="#upgrade">13. 升级条件</a>
+    <a href="#plan">14. 开发计划</a>
+    <a href="#acceptance">15. 技术验收</a>
+  </nav>
+</aside>
+
+<main>
+<header class="hero">
+  <span class="badge">LIGHTWEIGHT ARCHITECTURE SPEC</span>
+  <h1>智能招聘评测系统<br>轻量技术架构设计文档</h1>
+  <p>面向小型内部项目，采用单一 Python 技术栈，删除不必要的微服务、消息队列、缓存、对象存储和独立前端工程，以最低部署复杂度完成完整业务闭环。</p>
+  <div class="meta">
+    <span>语言：Python</span>
+    <span>框架：Django 5.2 LTS</span>
+    <span>数据库：SQLite</span>
+    <span>后台任务：数据库任务表 + 单Worker</span>
+    <span>部署：单机 / 单镜像</span>
+  </div>
+</header>
+
+<div class="content">
+
+<section id="overview">
+  <h2>1. 技术方案结论</h2>
+  <div class="grid-3">
+    <div class="kpi"><b>1个代码仓库</b><span>页面、业务、AI、导出统一维护</span></div>
+    <div class="kpi"><b>1个数据库文件</b><span>SQLite满足单机小规模使用</span></div>
+    <div class="kpi"><b>2个Python进程</b><span>Web进程 + AI后台Worker</span></div>
+  </div>
+  <div class="callout good">
+    <strong>最终推荐：</strong>Django单体应用 + Django Templates + HTMX + SQLite + 本地文件存储 + 自定义数据库任务队列。
+  </div>
+  <table>
+    <thead><tr><th>层级</th><th>最终选型</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>语言</td><td>Python 3.12+</td><td>业务开发、AI调用、PDF解析、文档导出使用同一语言。</td></tr>
+      <tr><td>Web框架</td><td>Django 5.2 LTS</td><td>内置ORM、迁移、认证、权限、Session、表单、模板和管理后台。</td></tr>
+      <tr><td>页面</td><td>Django Templates + HTMX + Bootstrap</td><td>不建设独立Vue工程，降低前后端联调和部署成本。</td></tr>
+      <tr><td>数据库</td><td>SQLite</td><td>单机、小并发、低写入频率场景足够。</td></tr>
+      <tr><td>文件存储</td><td>本地data目录</td><td>简历、答卷、代码包和导出文件按任务目录存放。</td></tr>
+      <tr><td>后台任务</td><td>ai_job表 + 单个Worker</td><td>删除Redis、RabbitMQ、Celery。</td></tr>
+      <tr><td>模型调用</td><td>统一LLMClient</td><td>直接调用外部或私有模型API，结构化结果由Pydantic校验。</td></tr>
+      <tr><td>部署</td><td>systemd或Docker Compose</td><td>只启动Web和Worker两个进程。</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="goals">
+  <h2>2. 架构目标与边界</h2>
+  <div class="grid-2">
+    <div class="card">
+      <h3>第一版目标</h3>
+      <ul class="checklist">
+        <li>用最少组件跑通完整招聘评测闭环。</li>
+        <li>单人或小团队可以快速开发和维护。</li>
+        <li>能够方便调试Prompt、模型输出和评分规则。</li>
+        <li>支持普通题与现场开发题两条独立分支。</li>
+        <li>后续可平滑升级数据库、存储和任务队列。</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>明确不建设</h3>
+      <ul class="checklist">
+        <li>微服务和服务注册发现。</li>
+        <li>独立前端工程与Node生产服务。</li>
+        <li>Redis、RabbitMQ、MinIO、Keycloak。</li>
+        <li>Kubernetes、Prometheus、Grafana。</li>
+        <li>在线IDE、自动代码运行、自动监考。</li>
+        <li>复杂Agent框架与自主规划。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="architecture">
+  <h2>3. 总体技术架构</h2>
+  <div class="arch">
+浏览器
+  │
+  │ HTTP / HTTPS
+  ▼
+┌────────────────────────────────────────────────────┐
+│                  Django 单体应用                    │
+│                                                    │
+│  页面渲染     用户权限      招聘任务      状态流转  │
+│  简历上传     能力匹配      题目审核      文件导出  │
+│  结果回收     评分确认      报告生成      审计日志  │
+└───────────────┬───────────────────┬────────────────┘
+                │                   │
+                ▼                   ▼
+        ┌──────────────┐    ┌─────────────────────┐
+        │ SQLite       │    │ 本地文件目录 data/  │
+        │ app.sqlite3  │    │ resumes/            │
+        │ 业务数据     │    │ submissions/        │
+        │ AI任务状态   │    │ exports/            │
+        └──────┬───────┘    └─────────────────────┘
+               │
+               ▼
+        ┌────────────────┐
+        │ Python Worker  │
+        │ 轮询 ai_job 表 │
+        │ PDF解析        │
+        │ 模型调用       │
+        │ 自动出题       │
+        │ 辅助评分       │
+        │ 报告生成       │
+        └──────┬─────────┘
+               ▼
+        外部模型 / 私有模型API
+  </div>
+  <div class="callout">
+    <strong>架构原则：</strong>核心业务状态由Django和SQLite管理；Worker只执行耗时AI任务，不直接决定题目是否发布、评分是否生效或候选人是否进入下一轮。
+  </div>
+</section>
+
+<section id="selection">
+  <h2>4. 技术选型说明</h2>
+  <h3>4.1 为什么选Django</h3>
+  <table>
+    <thead><tr><th>能力</th><th>Django内置支持</th><th>本项目用途</th></tr></thead>
+    <tbody>
+      <tr><td>ORM和迁移</td><td>是</td><td>任务、题目、提交、评分和报告数据管理。</td></tr>
+      <tr><td>用户认证</td><td>是</td><td>HR、技术负责人、面试官、管理员。</td></tr>
+      <tr><td>权限与用户组</td><td>是</td><td>基础RBAC与任务负责人权限。</td></tr>
+      <tr><td>表单和文件上传</td><td>是</td><td>创建任务、上传PDF、上传答卷和代码包。</td></tr>
+      <tr><td>模板渲染</td><td>是</td><td>直接实现现有六个核心页面。</td></tr>
+      <tr><td>管理后台</td><td>是</td><td>用户、模板、评分规则和异常数据维护。</td></tr>
+    </tbody>
+  </table>
+
+  <h3>4.2 为什么不使用FastAPI作为主框架</h3>
+  <div class="card">
+    <p>FastAPI适合纯API和独立AI服务，但本项目主要是内部管理页面、文件上传、状态流转、权限与后台配置。若采用FastAPI，仍需额外建设ORM迁移、认证、Session、管理后台和前端应用，整体复杂度更高。</p>
+  </div>
+
+  <h3>4.3 为什么暂时使用SQLite</h3>
+  <div class="grid-2">
+    <div class="card">
+      <h4>适用条件</h4>
+      <ul>
+        <li>单机部署。</li>
+        <li>一个Web实例和一个Worker。</li>
+        <li>用户数量少，写入频率低。</li>
+        <li>AI任务不会长时间占用数据库事务。</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4>使用要求</h4>
+      <ul>
+        <li>开启WAL模式。</li>
+        <li>事务保持短小。</li>
+        <li>Worker一次只领取一个任务。</li>
+        <li>定期备份数据库文件和data目录。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="modules">
+  <h2>5. 应用模块与代码结构</h2>
+  <div class="module-tree">smart_recruitment/
+├── manage.py
+├── config/
+│   ├── settings.py
+│   ├── urls.py
+│   ├── wsgi.py
+│   └── logging.py
+├── apps/
+│   ├── accounts/
+│   ├── tasks/
+│   ├── assessments/
+│   ├── submissions/
+│   ├── reports/
+│   └── audit/
+├── services/
+│   ├── llm_client.py
+│   ├── resume_parser.py
+│   ├── analysis_workflow.py
+│   ├── question_workflow.py
+│   ├── development_workflow.py
+│   ├── scoring_workflow.py
+│   └── export_service.py
+├── prompts/
+│   ├── analyze_position.txt
+│   ├── analyze_resume.txt
+│   ├── match_skills.txt
+│   ├── generate_questions.txt
+│   ├── generate_development_task.txt
+│   ├── score_submission.txt
+│   └── generate_report.txt
+├── templates/
+├── static/
+├── data/
+├── tests/
+└── requirements.txt</div>
+
+  <table>
+    <thead><tr><th>模块</th><th>职责</th></tr></thead>
+    <tbody>
+      <tr><td><code>accounts</code></td><td>用户、用户组、登录和权限。</td></tr>
+      <tr><td><code>tasks</code></td><td>招聘评测任务、岗位和候选人快照、三类状态。</td></tr>
+      <tr><td><code>assessments</code></td><td>岗位/简历分析、待验证项、普通题、开发题。</td></tr>
+      <tr><td><code>submissions</code></td><td>普通题答卷和现场开发题附件回收。</td></tr>
+      <tr><td><code>reports</code></td><td>评分、能力评价、最终报告和导出。</td></tr>
+      <tr><td><code>audit</code></td><td>关键操作、状态变化、下载和发送日志。</td></tr>
+      <tr><td><code>services</code></td><td>PDF、模型、AI工作流和文档生成等非页面业务。</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="workflow">
+  <h2>6. AI后台任务机制</h2>
+  <p class="lead">不引入RabbitMQ和Celery，使用数据库任务表与单个常驻Worker。</p>
+
+  <h3>6.1 ai_job核心字段</h3>
+  <table>
+    <thead><tr><th>字段</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>task_id</code></td><td>关联招聘评测任务。</td></tr>
+      <tr><td><code>job_type</code></td><td>分析、出题、评分、报告或导出。</td></tr>
+      <tr><td><code>status</code></td><td>queued / running / success / failed / cancelled。</td></tr>
+      <tr><td><code>progress</code></td><td>0—100，供前端轮询展示。</td></tr>
+      <tr><td><code>input_json</code></td><td>任务输入快照或引用ID。</td></tr>
+      <tr><td><code>result_json</code></td><td>结构化AI结果。</td></tr>
+      <tr><td><code>retry_count</code></td><td>失败重试次数。</td></tr>
+      <tr><td><code>error_message</code></td><td>错误摘要。</td></tr>
+    </tbody>
+  </table>
+
+  <h3>6.2 任务类型</h3>
+  <div class="flow">
+    <span class="node">analyze_position_resume</span>
+    <span class="node">generate_regular_questions</span>
+    <span class="node">generate_development_task</span>
+    <span class="node">score_regular_submission</span>
+    <span class="node">score_development_submission</span>
+    <span class="node">generate_report</span>
+    <span class="node">export_document</span>
+  </div>
+
+  <h3>6.3 Worker流程</h3>
+<pre>while True:
+    job = claim_next_queued_job()
+
+    if job is None:
+        sleep(2)
+        continue
+
+    try:
+        mark_running(job)
+        result = execute_job(job)
+        validate_result(result)
+        save_result(job, result)
+        mark_success(job)
+    except Exception as exc:
+        mark_failed_or_retry(job, exc)</pre>
+
+  <div class="callout warn">
+    <strong>并发要求：</strong>MVP只启动一个Worker。领取任务时使用短事务更新状态，避免两个进程重复执行同一任务。
+  </div>
+</section>
+
+<section id="storage">
+  <h2>7. 数据与文件存储</h2>
+  <h3>7.1 精简业务表</h3>
+  <table>
+    <thead><tr><th>表</th><th>保存内容</th></tr></thead>
+    <tbody>
+      <tr><td><code>recruitment_task</code></td><td>岗位、候选人、负责人、主状态和两条分支状态。</td></tr>
+      <tr><td><code>attachment</code></td><td>简历、答卷、代码包、README、截图和导出文件。</td></tr>
+      <tr><td><code>task_analysis</code></td><td>岗位能力、简历画像、能力分析和待验证项JSON。</td></tr>
+      <tr><td><code>regular_question_set</code></td><td>普通题整套JSON、版本和审核状态。</td></tr>
+      <tr><td><code>development_task</code></td><td>现场开发题JSON、发送和回收状态。</td></tr>
+      <tr><td><code>submission</code></td><td>普通题和开发题提交记录。</td></tr>
+      <tr><td><code>evaluation</code></td><td>两类评分、能力评价和最终报告。</td></tr>
+      <tr><td><code>ai_job</code></td><td>后台AI任务状态和结果。</td></tr>
+    </tbody>
+  </table>
+
+  <h3>7.2 文件目录</h3>
+<pre>data/
+├── app.sqlite3
+├── resumes/
+│   └── task_001/
+├── submissions/
+│   └── task_001/
+├── exports/
+│   └── task_001/
+├── temp/
+└── backups/</pre>
+
+  <h3>7.3 文件规则</h3>
+  <ul>
+    <li>数据库只保存相对路径，不保存BLOB。</li>
+    <li>服务器保存名使用UUID，原始文件名单独记录。</li>
+    <li>上传目录不直接暴露为公网静态目录。</li>
+    <li>所有下载经过Django权限判断。</li>
+    <li>简历、候选人答卷和用人部门答案包分目录存储。</li>
+  </ul>
+</section>
+
+<section id="frontend">
+  <h2>8. 页面实现方案</h2>
+  <table>
+    <thead><tr><th>技术</th><th>用途</th></tr></thead>
+    <tbody>
+      <tr><td>Django Templates</td><td>页面骨架、列表、表单和详情页。</td></tr>
+      <tr><td>Bootstrap 5</td><td>布局、表单、按钮、弹窗、表格和响应式样式。</td></tr>
+      <tr><td>HTMX</td><td>局部刷新、题目替换、状态更新、评分保存和任务进度轮询。</td></tr>
+      <tr><td>少量原生JavaScript</td><td>文件上传预览、确认弹窗、动态表单。</td></tr>
+    </tbody>
+  </table>
+
+  <h3>8.1 页面与路由建议</h3>
+<pre>GET  /tasks/
+GET  /tasks/create/
+POST /tasks/create/
+GET  /tasks/&lt;id&gt;/analysis/
+POST /tasks/&lt;id&gt;/verification-items/
+GET  /tasks/&lt;id&gt;/questions/
+POST /tasks/&lt;id&gt;/questions/generate/
+GET  /tasks/&lt;id&gt;/development-task/
+POST /tasks/&lt;id&gt;/submissions/
+GET  /tasks/&lt;id&gt;/evaluation/
+POST /tasks/&lt;id&gt;/evaluation/confirm/
+GET  /jobs/&lt;id&gt;/status/</pre>
+
+  <div class="callout">
+    <strong>交互原则：</strong>页面以服务端渲染为主，AI处理过程采用2—3秒轮询job状态；不使用WebSocket，不建设独立SPA。
+  </div>
+</section>
+
+<section id="exports">
+  <h2>9. 文档导出方案</h2>
+  <table>
+    <thead><tr><th>格式</th><th>技术</th><th>用途</th></tr></thead>
+    <tbody>
+      <tr><td>Word</td><td>docxtpl / python-docx</td><td>候选人试卷、用人部门题目包、开发题说明、评测报告。</td></tr>
+      <tr><td>Excel</td><td>openpyxl</td><td>普通题清单、参考答案、评分标准和评分登记表。</td></tr>
+      <tr><td>PDF</td><td>HTML模板 + Playwright打印</td><td>正式候选人试卷、开发题说明和最终报告。</td></tr>
+      <tr><td>ZIP</td><td>Python zipfile</td><td>现场开发题交付包或候选人回收材料归档。</td></tr>
+    </tbody>
+  </table>
+  <div class="flow">
+    <span class="node">数据库JSON</span><span class="arrow">→</span>
+    <span class="node">ViewModel</span><span class="arrow">→</span>
+    <span class="node">独立模板</span><span class="arrow">→</span>
+    <span class="node">Word / Excel / PDF</span><span class="arrow">→</span>
+    <span class="node">attachment记录</span>
+  </div>
+  <div class="callout red">
+    <strong>防误发：</strong>候选人版和用人部门版必须使用不同模板生成，不能通过在同一文档中隐藏答案来制作候选人版。
+  </div>
+</section>
+
+<section id="security">
+  <h2>10. 用户权限与安全</h2>
+  <h3>10.1 角色</h3>
+  <div class="flow">
+    <span class="node">HR</span>
+    <span class="node">技术负责人</span>
+    <span class="node">面试官</span>
+    <span class="node">管理员</span>
+  </div>
+  <table>
+    <thead><tr><th>角色</th><th>主要权限</th></tr></thead>
+    <tbody>
+      <tr><td>HR</td><td>创建任务、上传简历、导出候选人版、记录发送与回收。</td></tr>
+      <tr><td>技术负责人</td><td>确认待验证项、审核题目、查看答案和评分标准、确认评分。</td></tr>
+      <tr><td>面试官</td><td>查看指定任务、录入评分和评价。</td></tr>
+      <tr><td>管理员</td><td>用户、用户组、Prompt模板、评分规则和异常任务维护。</td></tr>
+    </tbody>
+  </table>
+
+  <h3>10.2 最低安全要求</h3>
+  <ul>
+    <li>使用Django内置认证、CSRF、防XSS模板转义和Session安全配置。</li>
+    <li>限制PDF、DOCX、XLSX、ZIP等允许上传类型和文件大小。</li>
+    <li>ZIP和候选人代码只存储，不在服务器自动执行。</li>
+    <li>模型调用日志不保存完整个人联系方式和完整简历原文。</li>
+    <li>下载、导出、发送、评分确认写入审计日志。</li>
+    <li>生产环境配置HTTPS、Secure Cookie和定期备份。</li>
+  </ul>
+</section>
+
+<section id="deploy">
+  <h2>11. 部署方案</h2>
+  <h3>11.1 最简部署</h3>
+  <div class="arch">
+一台 Linux 服务器
+├── Nginx（可选，负责HTTPS与静态资源）
+├── Gunicorn
+│   └── Django Web应用
+├── Python Worker
+│   └── python manage.py run_ai_worker
+└── data/
+    ├── app.sqlite3
+    ├── resumes/
+    ├── submissions/
+    ├── exports/
+    └── backups/
+  </div>
+
+  <h3>11.2 systemd服务</h3>
+<pre>smart-recruitment-web.service
+smart-recruitment-worker.service</pre>
+
+  <h3>11.3 Docker Compose</h3>
+<pre>services:
+  web:
+    image: smart-recruitment:latest
+    command: gunicorn config.wsgi:application -b 0.0.0.0:8000
+    volumes:
+      - ./data:/app/data
+
+  worker:
+    image: smart-recruitment:latest
+    command: python manage.py run_ai_worker
+    volumes:
+      - ./data:/app/data</pre>
+
+  <div class="callout warn">
+    <strong>SQLite限制：</strong>Web和Worker必须挂载同一个本地磁盘目录，不适合跨多台服务器共享。
+  </div>
+</section>
+
+<section id="observability">
+  <h2>12. 日志、异常与运维</h2>
+  <table>
+    <thead><tr><th>类别</th><th>实现方式</th></tr></thead>
+    <tbody>
+      <tr><td>应用日志</td><td>Python logging输出到按日滚动文件。</td></tr>
+      <tr><td>AI任务日志</td><td>ai_job保存状态、进度、错误摘要和重试次数。</td></tr>
+      <tr><td>模型调用记录</td><td>保存场景、模型、Prompt版本、耗时、Token量和响应状态。</td></tr>
+      <tr><td>审计日志</td><td>记录状态变更、题目确认、下载、发送和评分确认。</td></tr>
+      <tr><td>备份</td><td>每日打包app.sqlite3与data目录，保留7—30天。</td></tr>
+      <tr><td>健康检查</td><td>/health/检查Web、数据库可写和Worker最近心跳。</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="upgrade">
+  <h2>13. 后续升级触发条件</h2>
+  <table>
+    <thead><tr><th>出现的问题</th><th>升级方案</th></tr></thead>
+    <tbody>
+      <tr><td>多人同时写入，频繁出现database locked</td><td>SQLite迁移到PostgreSQL。</td></tr>
+      <tr><td>AI任务积压，需要多个Worker</td><td>引入Redis + RQ，或RabbitMQ + Celery。</td></tr>
+      <tr><td>需要部署多个Web实例</td><td>PostgreSQL + 共享对象存储。</td></tr>
+      <tr><td>本地文件容量或备份压力增大</td><td>切换到MinIO或S3兼容存储。</td></tr>
+      <tr><td>需要企业统一登录</td><td>接入LDAP、OIDC或Keycloak。</td></tr>
+      <tr><td>页面交互明显复杂化</td><td>局部页面逐步引入Vue，不必全量重写。</td></tr>
+      <tr><td>需要复杂跨天流程与补偿</td><td>再评估专业工作流引擎。</td></tr>
+      <tr><td>历史题库规模大、需要语义检索</td><td>迁移PostgreSQL并增加pgvector。</td></tr>
+    </tbody>
+  </table>
+  <div class="callout good">
+    <strong>演进原则：</strong>不为未来可能出现的问题提前增加中间件，只在真实瓶颈出现后替换对应组件。
+  </div>
+</section>
+
+<section id="plan">
+  <h2>14. 推荐开发计划</h2>
+  <div class="card">
+    <div class="phase"><strong>阶段1</strong><div>初始化Django项目、用户权限、任务创建、SQLite模型、文件上传和任务列表。</div></div>
+    <div class="phase"><strong>阶段2</strong><div>实现PyMuPDF简历解析、岗位分析、能力匹配和待验证项确认。</div></div>
+    <div class="phase"><strong>阶段3</strong><div>实现ai_job表、Worker、普通题生成、审核、版本和Word/PDF/Excel导出。</div></div>
+    <div class="phase"><strong>阶段4</strong><div>实现现场开发题、独立交付包、发送和回收状态。</div></div>
+    <div class="phase"><strong>阶段5</strong><div>实现答案上传、AI评分建议、人工确认和最终评测报告。</div></div>
+    <div class="phase"><strong>阶段6</strong><div>完善权限、日志、备份、异常重试和部署脚本。</div></div>
+  </div>
+
+  <h3>14.1 建议依赖</h3>
+<pre>Django==5.2.*
+pydantic>=2.0
+PyMuPDF
+httpx
+python-docx
+docxtpl
+openpyxl
+playwright
+gunicorn
+whitenoise
+django-htmx</pre>
+</section>
+
+<section id="acceptance">
+  <h2>15. 技术验收标准</h2>
+  <div class="card">
+    <ol class="checklist">
+      <li>单台服务器能够启动Web和Worker两个进程。</li>
+      <li>用户可登录并按角色访问任务数据。</li>
+      <li>可创建任务、上传文本型PDF简历并触发后台分析。</li>
+      <li>页面可查看任务进度和AI任务错误信息。</li>
+      <li>岗位、简历、待验证项和题目结果均通过结构化校验。</li>
+      <li>普通题可导出用人部门版和候选人版。</li>
+      <li>现场开发题可独立生成、发送、回收和评分。</li>
+      <li>候选人文件只能通过授权下载接口访问。</li>
+      <li>评分保留AI建议和人工最终结果。</li>
+      <li>系统能够生成最终评测报告并保留审计记录。</li>
+      <li>数据库与文件目录可一键备份和恢复。</li>
+      <li>在无Redis、RabbitMQ、PostgreSQL、MinIO的情况下完整跑通业务闭环。</li>
+    </ol>
+  </div>
+</section>
+
+</div>
+<footer>
+  智能招聘评测系统 · 轻量技术架构设计文档 · Python / Django / SQLite · MVP 1.0
+</footer>
+</main>
+</div>
+</body>
+</html>

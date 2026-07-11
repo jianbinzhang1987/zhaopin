@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}现场开发题交付｜智能招聘评测系统{% endblock %}
+{% block breadcrumb %}招聘任务 / <strong>现场开发题交付</strong>{% endblock %}
+{% block content %}
+<section class="title-row">
+  <div>
+    <h1>{{ task.position.name }} / {{ task.candidate.name }} / 现场开发题交付</h1>
+    <p>交付方式：提前发送　完成方式：线下开发　回收状态：<span class="status amber">待发送</span>　截止时间：2026-07-15</p>
+  </div>
+  <div class="button-group">
+    <button class="btn">✎ 编辑题目</button>
+    <button class="btn">◉ 预览说明</button>
+    <form method="post">{% csrf_token %}<button class="btn primary">发送给候选人</button></form>
+  </div>
+</section>
+
+<section class="content-grid three dev-grid">
+  <article class="panel overview-list">
+    <h2>题目概览</h2>
+    <p><span>题目名称：</span><strong>{{ dev_task.content.background|default:"企业制度问答辅助模块" }}</strong></p>
+    <p><span>目标：</span><strong>实现一个简单的AI辅助功能模块</strong></p>
+    <p><span>开发时长：</span><strong>{{ dev_task.content.duration|default:"3天" }}</strong></p>
+    <p><span>是否允许使用大模型：</span><strong>允许</strong></p>
+    <p><span>是否允许联网：</span><strong>允许</strong></p>
+    <p><span>提交方式：</span><strong>压缩包 + README</strong></p>
+    <div class="info-note">独立交付，不与普通题目混合导出</div>
+  </article>
+
+  <article class="panel dev-description">
+    <h2>题目说明</h2>
+    <section><h3>业务背景</h3><p>{{ dev_task.content.background|default:"公司内部需要一个企业制度问答辅助模块，帮助员工快速检索和理解企业制度文档内容，提升内部信息获取效率。" }}</p></section>
+    <section><h3>任务要求</h3><p>基于提供的企业制度文档，实现文档读取、问答、引用来源展示，并进行基础安全处理。</p></section>
+    <section><h3>交付内容</h3><p>可运行的系统代码、说明文档与部署/运行说明、README。</p></section>
+    <section><h3>验收重点</h3><p>功能完整可用，回答准确且展示引用来源，具备基础安全与校验。</p></section>
+  </article>
+
+  <article class="panel tracking">
+    <h2>交付与跟踪</h2>
+    <ol>
+      <li>生成题目包</li>
+      <li>发送候选人</li>
+      <li>候选人线下完成</li>
+      <li>回收结果并评审</li>
+    </ol>
+    <dl class="kv-list boxed"><dt>发送状态</dt><dd><span class="status amber">待发送</span></dd><dt>回收状态</dt><dd>未回收</dd><dt>评审安排</dt><dd>待安排</dd></dl>
+    <div class="button-group full"><button class="btn">下载题目包</button><button class="btn">查看发送记录</button></div>
+  </article>
+</section>
+
+<section class="bottom-grid">
+  <article class="panel">
+    <h2>候选人收到的内容</h2>
+    <ul class="blue-list"><li>题目说明PDF</li><li>开发要求清单</li><li>提交规范</li><li>截止时间</li></ul>
+    <div class="warn-box">现场开发题会提前发给候选人，在线下独立完成后再回收评审。</div>
+  </article>
+  <article class="panel">
+    <h2>面试官评审关注</h2>
+    <ul class="blue-list"><li>功能完整性</li><li>代码质量</li><li>Prompt与RAG设计</li><li>安全与校验策略</li><li>README与说明文档</li></ul>
+  </article>
+</section>
+{% endblock %}

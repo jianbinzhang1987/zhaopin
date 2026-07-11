@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}登录｜智能招聘评测系统{% endblock %}
+{% block content %}
+<section class="auth-panel">
+  <h1>登录</h1>
+  <form method="post" class="form">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button class="primary" type="submit">进入系统</button>
+  </form>
+</section>
+{% endblock %}
+
