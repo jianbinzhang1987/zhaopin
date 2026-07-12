@@ -1,13 +1,88 @@
-{% extends "base.html" %}
-{% block title %}登录｜智能招聘评测系统{% endblock %}
-{% block content %}
-<section class="auth-panel">
-  <h1>登录</h1>
-  <form method="post" class="form">
-    {% csrf_token %}
-    {{ form.as_p }}
-    <button class="primary" type="submit">进入系统</button>
-  </form>
-</section>
-{% endblock %}
+{% load static %}
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>登录｜智能招聘评测系统</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body class="login-page">
+  <div class="login-bg" style="background-image: url('{% static 'img/login-bg.jpg' %}');"></div>
+  <div class="login-overlay"></div>
 
+  <main class="login-main">
+    <aside class="login-aside">
+      <div class="login-aside-body">
+        <a class="login-logo" href="{% url 'login' %}">
+          <span class="logo-mark">A</span>
+          <strong>智能招聘评测</strong>
+        </a>
+        <h2 class="login-tag">人才驱动 · 智能评测</h2>
+        <p class="login-sub">
+          基于 AI 的招聘评测平台，覆盖岗位建模、能力测评、
+          综合评分到分析报告的全流程，帮助企业精准识别优秀人才。
+        </p>
+        <ul class="login-features">
+          <li>
+            <span class="lf-dot">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
+            </span>
+            多岗位招聘任务集中管理
+          </li>
+          <li>
+            <span class="lf-dot">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+            </span>
+            岗位模板库快速复用
+          </li>
+          <li>
+            <span class="lf-dot">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line></svg>
+            </span>
+            智能评分与可视化报告
+          </li>
+        </ul>
+      </div>
+      <div class="login-foot">&copy; 2026 智能招聘评测系统</div>
+    </aside>
+
+    <section class="login-panel">
+      <h1>欢迎登录</h1>
+      <p class="login-hint">请输入您的账号信息</p>
+
+      {% if form.errors %}
+        <div class="login-error">账号或密码不正确，请重新输入。</div>
+      {% endif %}
+
+      <form method="post" class="login-form">
+        {% csrf_token %}
+        <label class="field">
+          <span class="field-label">账号</span>
+          <span class="field-wrap">
+            <span class="field-ico">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            </span>
+            <input type="text" name="username" autocomplete="username"
+                   placeholder="请输入账号" value="{{ form.username.value|default:'' }}" autofocus>
+          </span>
+        </label>
+        <label class="field">
+          <span class="field-label">密码</span>
+          <span class="field-wrap">
+            <span class="field-ico">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+            </span>
+            <input type="password" name="password" autocomplete="current-password"
+                   placeholder="请输入密码">
+          </span>
+        </label>
+        <input type="hidden" name="next" value="{{ next|default:'/' }}">
+        <button class="btn btn-login" type="submit">登 录</button>
+      </form>
+
+      <p class="login-tip">测试账号：admin / admin123</p>
+    </section>
+  </main>
+</body>
+</html>
