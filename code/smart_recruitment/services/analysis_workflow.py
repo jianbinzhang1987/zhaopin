@@ -1,3 +1,4 @@
+import re
 from typing import Any
 
 from django.db.models import Max
@@ -13,7 +14,7 @@ def _next_version(queryset) -> int:
 
 def _fallback_analysis(task) -> dict[str, Any]:
     description = task.position.raw_job_description
-    resume_text = task.resume.resume_text
+    resume_text = task.resume.resume_text if task.resume else ""
     skills = [
         {
             "skill": "岗位核心技术",
@@ -43,6 +44,7 @@ def _fallback_analysis(task) -> dict[str, Any]:
 
 def build_analysis(task, llm: LLMClient | None = None) -> dict[str, Any]:
     fallback = _fallback_analysis(task)
+    resume_text = task.resume.resume_text if task.resume else ""
     if not llm:
         return with_ai_metadata(fallback, "local_fallback")
 
@@ -61,7 +63,7 @@ def build_analysis(task, llm: LLMClient | None = None) -> dict[str, Any]:
 
 候选人：{task.candidate.name}
 简历文本：
-{task.resume.resume_text[:8000]}
+{resume_text[:8000]}
 
 请输出：
 1. position_skills: 岗位能力项数组，每项含 name/category/requirement_level/weight/must_verify/description
@@ -110,6 +112,8 @@ def _fallback_questions(task) -> list[dict[str, Any]]:
 def generate_regular_questions(task, llm: LLMClient | None = None) -> RegularQuestionSet:
     questions = _fallback_questions(task)
     source = "local_fallback"
+    ai_error = ""
+    resume_text = task.resume.resume_text if task.resume else ""
     if llm:
         system_prompt = (
             "你是技术评测出题专家。只返回JSON对象。"
@@ -123,7 +127,7 @@ def generate_regular_questions(task, llm: LLMClient | None = None) -> RegularQue
 {task.position.raw_job_description}
 
 候选人简历摘要：
-{task.resume.resume_text[:5000]}
+{resume_text[:5000]}
 
 待验证项：
 {getattr(analysis, "verification_items", [])}
@@ -134,20 +138,100 @@ def generate_regular_questions(task, llm: LLMClient | None = None) -> RegularQue
             payload = llm.json_completion(system_prompt, user_prompt)
             questions = payload.get("questions") or questions
             source = "llm"
-        except LLMError:
+        except LLMError as exc:
             source = "local_fallback_after_error"
+            ai_error = str(exc)
 
+    questions = _normalize_questions(questions, source, ai_error)
     version = _next_version(task.regular_question_sets)
     return RegularQuestionSet.objects.create(
         task=task,
         version=version,
         status="reviewing",
-        questions=with_ai_metadata({"items": questions}, source)["items"],
+        questions=questions,
     )
 
 
-def _fallback_development_content(task) -> dict[str, Any]:
+def generate_regular_question_variant(task, question: dict[str, Any], mode: str, llm: LLMClient | None = None) -> dict[str, Any]:
+    mode_text = {
+        "simplify": "降低难度，保留同一能力点，让题目更适合基础验证。",
+        "increase": "提高难度，保留同一能力点，增加真实项目分析和权衡要求。",
+        "replace": "换一道验证同一能力点的新题，避免与原题表达和答案重复。",
+    }.get(mode, "换一道验证同一能力点的新题。")
+    fallback = dict(question)
+    fallback["status"] = "pending"
+    fallback["_ai_source"] = "local_fallback"
+    if mode == "simplify":
+        fallback["difficulty"] = "easy"
+        fallback["content"] = f"请用简洁语言回答：{question.get('content', '')}"
+    elif mode == "increase":
+        fallback["difficulty"] = "hard"
+        fallback["content"] = f"请结合真实项目经验深入分析：{question.get('content', '')}"
+    elif mode == "replace":
+        fallback["content"] = f"请围绕“{question.get('skill') or '当前能力'}”重新设计一个验证问题，并结合候选人项目经历作答。"
+
+    if not llm:
+        return _normalize_questions([fallback], "local_fallback")[0]
+
+    resume_text = task.resume.resume_text if task.resume else ""
+    system_prompt = (
+        "你是技术评测出题专家。只返回JSON对象，不要输出Markdown。"
+        "JSON必须包含 question 对象。question 必须包含 type, skill, difficulty, content, reference_answer, scoring_points。"
+    )
+    user_prompt = f"""
+岗位：{task.position.name}
+岗位要求：
+{task.position.raw_job_description}
+
+候选人简历摘要：
+{resume_text[:5000]}
+
+原题：
+{question}
+
+调整要求：
+{mode_text}
+"""
+    try:
+        payload = llm.json_completion(system_prompt, user_prompt)
+        candidate = payload.get("question") or payload
+        return _normalize_questions([candidate], "llm")[0]
+    except (LLMError, IndexError) as exc:
+        fallback["_ai_source"] = "local_fallback_after_error"
+        fallback["_ai_error"] = str(exc)
+        return _normalize_questions([fallback], "local_fallback_after_error", str(exc))[0]
+
+
+def _normalize_questions(questions: Any, source: str, ai_error: str = "") -> list[dict[str, Any]]:
+    if not isinstance(questions, list):
+        return _normalize_questions(_fallback_questions(None), "local_fallback")
+    normalized = []
+    for item in questions:
+        if not isinstance(item, dict):
+            continue
+        q = {
+            "type": item.get("type") or "qa",
+            "skill": item.get("skill") or "待验证能力",
+            "difficulty": item.get("difficulty") or "middle",
+            "content": item.get("content") or "",
+            "reference_answer": item.get("reference_answer") or "",
+            "scoring_points": item.get("scoring_points") if isinstance(item.get("scoring_points"), list) else [],
+            "status": item.get("status") or "pending",
+            "_ai_source": item.get("_ai_source") or source,
+        }
+        if ai_error:
+            q["_ai_error"] = ai_error
+        if q["content"]:
+            normalized.append(q)
+    return normalized
+
+
+def _fallback_development_content(task, direction: str = "") -> dict[str, Any]:
+    title = f"{direction}现场开发题" if direction else "岗位能力现场开发题"
     return {
+        "title": title,
+        "goal": "围绕岗位核心能力完成一个小型可运行模块。",
+        "direction": direction,
         "background": "围绕招聘岗位的真实业务场景完成一个小型可运行模块。",
         "requirements": [
             "实现清晰的数据结构和核心流程",
@@ -161,14 +245,74 @@ def _fallback_development_content(task) -> dict[str, Any]:
     }
 
 
-def generate_development_task(task, llm: LLMClient | None = None) -> DevelopmentTask:
-    content = _fallback_development_content(task)
+def _split_numbered_text(value: str) -> list[str]:
+    lines = [line.strip() for line in value.splitlines() if line.strip()]
+    items: list[str] = []
+    current = ""
+    for line in lines:
+        if line.startswith(("-", "*", "•")):
+            marker_item = line.lstrip("-*•").strip()
+            if marker_item:
+                if current:
+                    items.append(current)
+                current = marker_item
+            continue
+        if re.match(r"^\d+[\.、)]\s*", line):
+            if current:
+                items.append(current)
+            current = re.sub(r"^\d+[\.、)]\s*", "", line).strip()
+        elif current and (line.startswith(("   ", "\t")) or line[:1] in {"-", "—"}):
+            current = f"{current} {line.lstrip('-—').strip()}".strip()
+        elif current:
+            current = f"{current} {line}".strip()
+        else:
+            current = line
+    if current:
+        items.append(current)
+    return items or ([value.strip()] if value.strip() else [])
+
+
+def _ensure_list(value: Any, fallback: list[str] | None = None) -> list[Any]:
+    if isinstance(value, list):
+        return [item for item in value if item not in (None, "")]
+    if isinstance(value, tuple):
+        return [item for item in value if item not in (None, "")]
+    if isinstance(value, str):
+        return _split_numbered_text(value)
+    if value:
+        return [value]
+    return list(fallback or [])
+
+
+def normalize_development_content(content: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(content)
+    normalized["requirements"] = _ensure_list(normalized.get("requirements"))
+    normalized["deliverables"] = _ensure_list(normalized.get("deliverables"))
+    normalized["acceptance_criteria"] = _ensure_list(normalized.get("acceptance_criteria"))
+    constraints = normalized.get("constraints")
+    if isinstance(constraints, str):
+        normalized["constraints"] = {
+            "allow_internet": "不允许联网" not in constraints and "禁止联网" not in constraints,
+            "allow_llm": "不允许使用大模型" not in constraints and "禁止使用大模型" not in constraints,
+            "notes": _split_numbered_text(constraints),
+        }
+    elif isinstance(constraints, list):
+        normalized["constraints"] = {"allow_internet": True, "allow_llm": True, "notes": constraints}
+    elif not isinstance(constraints, dict):
+        normalized["constraints"] = {"allow_internet": True, "allow_llm": True}
+    return normalized
+
+
+def generate_development_task(task, llm: LLMClient | None = None, direction: str = "") -> DevelopmentTask:
+    content = _fallback_development_content(task, direction)
     source = "local_fallback"
+    resume_text = task.resume.resume_text if task.resume else ""
     if llm:
         system_prompt = (
             "你是现场开发题设计专家。只返回JSON对象。"
-            "JSON必须包含 background, requirements, duration, constraints, deliverables, acceptance_criteria。"
+            "JSON必须包含 title, goal, background, requirements, duration, constraints, deliverables, acceptance_criteria。"
             "题目应适合线下完成，不要求在线IDE或自动运行。"
+            "题目必须贴合候选人简历证据、岗位要求和指定出题方向。"
         )
         analysis = getattr(task, "analysis", None)
         user_prompt = f"""
@@ -177,21 +321,26 @@ def generate_development_task(task, llm: LLMClient | None = None) -> Development
 {task.position.raw_job_description}
 
 候选人简历摘要：
-{task.resume.resume_text[:5000]}
+{resume_text[:5000]}
 
 待验证项：
 {getattr(analysis, "verification_items", [])}
 
-请生成一个可提前发送给候选人的现场开发题。
+出题方向：
+{direction or "由模型根据岗位和待验证项选择最合适方向"}
+
+请生成一个可提前发送给候选人的现场开发题。题目要有明确业务背景、任务要求、交付内容、验收标准和约束条件。
 """
         try:
             payload = llm.json_completion(system_prompt, user_prompt)
             content = {**content, **{key: value for key, value in payload.items() if value}}
+            content["direction"] = direction or content.get("direction", "")
             source = "llm"
         except LLMError as exc:
             content["_ai_error"] = str(exc)
             source = "local_fallback_after_error"
 
+    content = normalize_development_content(content)
     content = with_ai_metadata(content, source)
     version = _next_version(task.development_tasks)
     return DevelopmentTask.objects.create(task=task, version=version, status="reviewing", content=content)

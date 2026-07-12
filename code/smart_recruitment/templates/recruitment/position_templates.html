@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}岗位模板管理｜智能招聘评测系统{% endblock %}
+{% block breadcrumb %}<strong>岗位模板管理</strong>　<span class="muted">维护岗位模板，提取岗位要求</span>{% endblock %}
+{% block content %}
+<section class="template-page">
+  <aside class="template-list-panel">
+    <div class="template-list-head">
+      <h2>岗位模板列表</h2>
+      <form method="post">
+        {% csrf_token %}
+        <button class="icon-btn" name="action" value="create" title="新增岗位模板">＋</button>
+      </form>
+    </div>
+    <form method="get" class="template-search">
+      <input name="q" value="{{ query }}" placeholder="搜索岗位名称">
+    </form>
+    <div class="template-list">
+      {% for template in templates %}
+        <a class="template-list-item {% if selected and selected.pk == template.pk %}active{% endif %}" href="{% url 'position-template-detail' template.pk %}{% if query %}?q={{ query|urlencode }}{% endif %}">
+          <span>{{ template.name }}</span>
+          <em class="{% if template.status == 'published' %}published{% elif template.status == 'disabled' %}draft{% else %}draft{% endif %}">{{ template.get_status_display }}</em>
+        </a>
+      {% empty %}
+        <p class="empty">暂无岗位模板</p>
+      {% endfor %}
+    </div>
+  </aside>
+
+  <section class="template-detail-panel">
+    {% if selected %}
+      <div class="template-detail-head">
+        <h1>岗位模板详情</h1>
+        <div class="template-header-actions">
+          <div class="button-group">
+            <button class="btn primary" form="template-edit-form" name="action" value="publish">发布模板</button>
+            <button class="btn" form="template-edit-form" name="action" value="draft">保存草稿</button>
+            {% if selected.status == 'published' %}
+              <a class="btn" href="{% url 'task-create' %}?template={{ selected.pk }}" title="使用当前模板新建评测任务">新建任务</a>
+            {% else %}
+              <span class="btn" aria-disabled="true" title="仅已发布模板可用于新建任务">新建任务</span>
+            {% endif %}
+            {% if selected.status == 'disabled' %}
+              <form method="post" class="inline-form">
+                {% csrf_token %}
+                <button class="btn" name="action" value="enable" title="恢复为草稿">重新启用</button>
+              </form>
+            {% else %}
+              <form method="post" class="inline-form">
+                {% csrf_token %}
+                <button class="btn" name="action" value="disable" title="停用模板" onclick="return confirm('确定停用此模板？停用后不可用于新建任务。');">停用</button>
+              </form>
+            {% endif %}
+            <form method="post" class="inline-form">
+              {% csrf_token %}
+              <button class="btn danger" name="action" value="delete" title="删除模板" onclick="return confirm('确定删除此模板？删除后不可恢复。');">删除</button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <form method="post" enctype="multipart/form-data" class="template-upload-form">
+        {% csrf_token %}
+        <div>
+          <strong>导入岗位文档</strong>
+          <span>支持 Word / Excel，解析后自动填充当前模板字段</span>
+        </div>
+        <label>
+          <span>选择文件</span>
+          <input type="file" name="template_file" accept=".docx,.xlsx">
+        </label>
+        <button class="btn" name="action" value="upload_parse">解析并填充</button>
+      </form>
+
+      <form id="template-edit-form" method="post" class="template-form">
+        {% csrf_token %}
+
+        <article class="template-card">
+          <h2><span class="blue-icon">▤</span>基础信息</h2>
+          <div class="template-basic-grid">
+            <label><span>岗位名称</span>{{ form.name }}</label>
+            <label><span>所属部门</span>{{ form.department }}</label>
+            <label><span>岗位级别</span>{{ form.job_level }}</label>
+            <label><span>适用场景</span>{{ form.scenario }}</label>
+          </div>
+        </article>
+
+        <article class="template-card">
+          <h2><span class="blue-icon">▧</span>岗位描述</h2>
+          {{ form.description }}
+        </article>
+
+        <article class="template-card">
+          <h2><span class="blue-icon">☷</span>岗位职责</h2>
+          {{ form.responsibilities_text }}
+        </article>
+
+        <article class="template-card">
+          <h2><span class="blue-icon">♙</span>任职要求</h2>
+          {{ form.requirements_text }}
+        </article>
+
+        <article class="template-card">
+          <h2><span class="blue-icon">◇</span>技能标签</h2>
+          <div class="tag-editor">
+            <div class="tag-preview">
+              <div>
+                <span>技术方向</span>
+                <span id="preview-technical-tags">
+                  {% for tag in selected.technical_tags %}
+                    <b class="tag-chip blue">{{ tag }}</b>
+                  {% empty %}
+                    <em class="tag-empty">暂无技术方向</em>
+                  {% endfor %}
+                </span>
+              </div>
+              <div>
+                <span>岗位关键词</span>
+                <span id="preview-keywords">
+                  {% for tag in selected.keywords %}
+                    <b class="tag-chip purple">{{ tag }}</b>
+                  {% empty %}
+                    <em class="tag-empty">暂无岗位关键词</em>
+                  {% endfor %}
+                </span>
+              </div>
+            </div>
+            <details class="tag-edit-details">
+              <summary>编辑标签文本</summary>
+              <div class="tag-input-grid">
+                <label><span>技术方向</span>{{ form.technical_tags_text }}</label>
+                <label><span>岗位关键词</span>{{ form.keywords_text }}</label>
+              </div>
+            </details>
+          </div>
+        </article>
+      </form>
+    {% else %}
+      <div class="template-empty">
+        <h1>还没有岗位模板</h1>
+        <p>上传 Word/Excel 岗位文档后，系统会解析内容并自动填充模板字段。</p>
+        <form method="post" enctype="multipart/form-data" class="empty-upload-form">
+          {% csrf_token %}
+          <input type="file" name="template_file" accept=".docx,.xlsx">
+          <button class="btn primary" name="action" value="upload_parse">上传并解析</button>
+        </form>
+        <form method="post">
+          {% csrf_token %}
+          <button class="btn primary" name="action" value="create">创建岗位模板</button>
+        </form>
+      </div>
+    {% endif %}
+  </section>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 技能标签预览随输入框实时同步（P2: 解决预览与输入不一致的视觉错位）
+(function () {
+  function syncTags(inputId, containerId) {
+    var input = document.getElementById(inputId);
+    var container = document.getElementById(containerId);
+    if (!input || !container) return;
+    function render() {
+      var tags = input.value.replace(/,/g, "、").replace(/，/g, "、").split("、").map(function (s) { return s.trim(); }).filter(Boolean);
+      container.innerHTML = tags.length
+        ? tags.map(function (t) { return '<b class="tag-chip ' + (containerId.indexOf("keyword") >= 0 ? "purple" : "blue") + '">' + escapeHtml(t) + "</b>"; }).join("")
+        : '<em class="tag-empty">暂无</em>';
+    }
+    input.addEventListener("input", render);
+    render();
+  }
+  function escapeHtml(s) { return s.replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+  syncTags("id_technical_tags_text", "preview-technical-tags");
+  syncTags("id_keywords_text", "preview-keywords");
+})();
+</script>
+{% endblock %}

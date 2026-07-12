@@ -1,8 +1,11 @@
 from pathlib import Path
 import os
 
+from dotenv import load_dotenv
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR / ".env")
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-only-smart-recruitment")
 DEBUG = os.getenv("DJANGO_DEBUG", "1") == "1"
@@ -11,6 +14,8 @@ LLM_API_KEY = os.getenv("LLM_API_KEY", "")
 LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4.1-mini")
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://api.openai.com/v1")
 LLM_TIMEOUT_SECONDS = int(os.getenv("LLM_TIMEOUT_SECONDS", "60"))
+# 是否要求模型返回严格 JSON 对象。当前上游 (opencode.ai) 不支持 response_format 参数，留空即不发送。
+LLM_RESPONSE_FORMAT = None
 
 INSTALLED_APPS = [
     "django.contrib.admin",

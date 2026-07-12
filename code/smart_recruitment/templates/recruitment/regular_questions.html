@@ -1,90 +1,200 @@
 {% extends "base.html" %}
+{% load recruitment_tags %}
 {% block title %}普通题目审核｜智能招聘评测系统{% endblock %}
 {% block breadcrumb %}招聘任务 / <strong>普通题目审核</strong>{% endblock %}
 {% block content %}
 <section class="title-row">
   <div>
     <h1>{{ task.position.name }} / {{ task.candidate.name }} / 普通题目审核</h1>
-    <p>题目类型：基础技能验证 + 问答题　题目数量：{{ question_set.questions|length|default:13 }}题　当前状态：<span class="status amber">待审核</span>　建议时长：30分钟</p>
+    <p>题目类型：基础技能验证 + 问答题　题目数量：{{ questions|length }}题　当前状态：<span class="status amber">{{ question_set.get_status_display|default:"待生成" }}</span>　版本：v{{ question_set.version|default:"-" }}　更新时间：{{ question_set.updated_at|date:"Y-m-d H:i:s"|default:"-" }}　建议时长：{{ question_set.duration_minutes|default:30 }}分钟　来源：{{ question_source|ai_source_label }}</p>
   </div>
   <div class="button-group">
-    <a class="btn" href="{% url 'enqueue-job' task.pk 'generate_regular_questions' %}">↻ 重新生成</a>
-    <button class="btn">☷ 调整难度</button>
-    <button class="btn">▣ 保存草稿</button>
-    <form method="post">{% csrf_token %}<button class="btn primary">导出题目 ›</button></form>
+    <form method="post" class="inline-form js-wait-form" data-wait-text="正在确认题目并进入现场开发题配置...">{% csrf_token %}<button class="btn primary" name="action" value="confirm" type="submit">确认题目</button></form>
+    <a class="btn" href="{% url 'development-task' task.pk %}">现场开发题配置</a>
+    <form method="post" class="inline-form js-wait-form" data-wait-text="正在重新生成整套题目，请稍候...">
+      {% csrf_token %}
+      <button class="btn" name="action" value="regenerate_set" type="submit">↻ 重新生成整套</button>
+    </form>
   </div>
 </section>
+
+{% if question_ai_error %}
+  <section class="warn-box">模型生成失败，已使用本地兜底题目。原因：{{ question_ai_error|truncatechars:180 }}</section>
+{% endif %}
 
 <section class="question-layout">
   <article class="panel question-list">
     <h2>题目清单</h2>
     <div class="question-group">
-      <h3>基础技能验证（5题）</h3>
-      {% for question in question_set.questions %}
-        <p class="{% if forloop.counter == 2 %}selected{% endif %}"><span>{{ forloop.counter }}. {{ question.content|truncatechars:18 }}</span><em>{% if forloop.counter == 1 %}已确认{% elif forloop.counter == 2 %}待修改{% else %}待确认{% endif %}</em></p>
+      <h3>基础技能验证（{{ basic_questions|length }}题）</h3>
+      {% for item in basic_question_items %}
+        <p class="{% if item.index == selected_index %}selected{% endif %}" data-question-row="{{ item.index }}"><a class="question-nav" data-index="{{ item.index }}" href="?q={{ item.index }}"><span>{{ item.display_no }}. {{ item.question.content|truncatechars:18 }}</span><em>{{ item.question.status|question_status_label }}</em></a></p>
       {% empty %}
-        <p class="selected"><span>1. Python列表推导式</span><em>已确认</em></p>
-        <p><span>2. SQL注入风险</span><em>待修改</em></p>
-        <p><span>3. Redis缓存穿透</span><em>已确认</em></p>
-        <p><span>4. 接口幂等性设计</span><em>已确认</em></p>
-        <p><span>5. 异步编程原理</span><em>已确认</em></p>
+        <p class="empty"><span>暂无基础技能验证题</span><em>-</em></p>
       {% endfor %}
     </div>
     <div class="question-group">
-      <h3>问答题（8题）</h3>
-      <p><span>1. 向量数据库的选型考量</span><em>待修改</em></p>
-      <p><span>2. RAG流水线设计思路</span><em>待修改</em></p>
-      <p><span>3. Prompt注入识别</span><em>待确认</em></p>
-      <p><span>4. Agent工具调用策略</span><em>待确认</em></p>
+      <h3>问答题（{{ qa_questions|length }}题）</h3>
+      {% for item in qa_question_items %}
+        <p class="{% if item.index == selected_index %}selected{% endif %}" data-question-row="{{ item.index }}"><a class="question-nav" data-index="{{ item.index }}" href="?q={{ item.index }}"><span>{{ item.display_no }}. {{ item.question.content|truncatechars:18 }}</span><em>{{ item.question.status|question_status_label }}</em></a></p>
+      {% empty %}
+        <p class="empty"><span>暂无问答题</span><em>-</em></p>
+      {% endfor %}
     </div>
   </article>
 
   <article class="panel question-preview">
     <h2>题目预览</h2>
-    {% with q=question_set.questions.1 %}
-      <h3>2. {{ q.content|default:"SQL注入风险" }}</h3>
-      <p>{{ q.reference_answer|default:"请分析以下代码是否存在 SQL 注入风险，并说明原因，给出1种修复方案。" }}</p>
-      <pre>def get_user(username):
-    sql = "SELECT * FROM users WHERE username = '" + username + "'"
-    cursor.execute(sql)
-    return cursor.fetchall()</pre>
-      <h4>答题要求：</h4>
-      <ul>
-        <li>说明该代码的风险点</li>
-        <li>举例说明可能的攻击方式</li>
-        <li>给出一种安全的修复方案（可附代码）</li>
+    {% if selected_question %}
+      <h3 id="question-preview-title">{{ selected_display_no }}. {{ selected_question.content }}</h3>
+      <p id="question-preview-meta">题型：{{ selected_question.type|question_type_label }}　能力：{{ selected_question.skill|default:"-" }}　难度：{{ selected_question.difficulty|difficulty_label }}　来源：{{ selected_question|get_item:"_ai_source"|ai_source_label }}</p>
+      <h4 id="question-answer-heading" {% if not selected_question.reference_answer %}hidden{% endif %}>参考答案：</h4>
+      <p id="question-preview-answer" {% if not selected_question.reference_answer %}hidden{% endif %}>{{ selected_question.reference_answer }}</p>
+      <h4>评分要点：</h4>
+      <ul id="question-preview-points">
+        {% for point in selected_question.scoring_points %}
+          <li>{{ point }}</li>
+        {% empty %}
+          <li>暂无评分要点，请重新生成或人工补充。</li>
+        {% endfor %}
       </ul>
-    {% endwith %}
-    <div class="review-actions"><button>✓ 通过</button><button>↓ 简化</button><button>↑ 提高难度</button><button>↔ 换一道同能力题</button><button>删除</button></div>
-    <div class="next-question"><strong>下一题</strong><span>3. Prompt注入识别 ›</span></div>
+    {% else %}
+      <div class="empty-state">
+        <h3>暂无普通题</h3>
+        <p>点击“重新生成”后，后台会根据岗位要求、简历分析和待验证能力生成题目。</p>
+      </div>
+    {% endif %}
+    {% if selected_question %}
+      <form method="post" class="review-actions js-wait-form" data-wait-text="正在处理当前题目，请稍候...">
+        {% csrf_token %}
+        <input id="question-action-index" type="hidden" name="question_index" value="{{ selected_index }}">
+        <button name="action" value="approve" type="submit">✓ 通过</button>
+        <button name="action" value="simplify" type="submit">↓ 简化</button>
+        <button name="action" value="increase" type="submit">↑ 提高难度</button>
+        <button name="action" value="replace" type="submit">↔ 换一道同能力题</button>
+        <button name="action" value="delete" type="submit">删除</button>
+      </form>
+    {% endif %}
+    {% if next_question %}
+      <a id="next-question-link" class="next-question" data-index="{{ selected_index|add:1 }}" href="?q={{ selected_index|add:1 }}"><strong>下一题</strong><span>{{ next_question.content|truncatechars:24 }} ›</span></a>
+    {% else %}
+      <a id="next-question-link" class="next-question" data-index="" href="#" hidden><strong>下一题</strong><span></span></a>
+    {% endif %}
   </article>
 
   <article class="panel export-panel">
     <h2>导出与交付</h2>
     <div class="export-box">
       <h3>用人部门版</h3>
-      <p><span class="file-chip">Word</span><span class="file-chip pdf">PDF</span><span class="file-chip excel">Excel</span></p>
+      <p><a class="file-chip" href="{% url 'export-regular' task.pk 'docx' %}?with_answers=1">Word</a><a class="file-chip pdf" href="{% url 'export-regular' task.pk 'pdf' %}?with_answers=1">PDF</a></p>
       <small>包含题目、参考答案、评分标准</small>
     </div>
     <div class="export-box">
       <h3>候选人版</h3>
-      <p><span class="file-chip pdf">PDF</span><span class="file-chip">Word</span></p>
+      <p><a class="file-chip pdf" href="{% url 'export-regular' task.pk 'pdf' %}">PDF</a><a class="file-chip" href="{% url 'export-regular' task.pk 'docx' %}">Word</a></p>
       <small>仅包含题目，不含答案</small>
     </div>
     <div class="info-note">现场开发设计题不在本页面导出，将单独交付给候选人线下完成。</div>
-    <div class="button-group full"><button class="btn primary">下载部门版</button><button class="btn">下载候选人版</button></div>
   </article>
 </section>
 
-<section class="bottom-grid">
+<section class="bottom-grid single">
   <article class="panel">
     <h2>题目覆盖概览</h2>
-    <table class="data-table compact"><tbody><tr><td>Python</td><td>3题</td><td><span class="status green-soft">已覆盖</span></td></tr><tr><td>Prompt</td><td>3题</td><td><span class="status green-soft">已覆盖</span></td></tr><tr><td>RAG</td><td>3题</td><td><span class="status green-soft">已覆盖</span></td></tr><tr><td>Agent</td><td>2题</td><td><span class="status green-soft">已覆盖</span></td></tr></tbody></table>
-  </article>
-  <article class="panel info-card">
-    <h2>使用说明</h2>
-    <p>1. 普通题目支持 Word、PDF、Excel 导出</p>
-    <p>2. 用于用人部门审核与候选人标准化作答</p>
+    <table class="data-table compact"><tbody>
+      {% for skill, count in coverage.items %}
+        <tr><td>{{ skill }}</td><td>{{ count }}题</td><td><span class="status green-soft">已覆盖</span></td></tr>
+      {% empty %}
+        <tr><td colspan="3" class="empty">暂无覆盖数据</td></tr>
+      {% endfor %}
+    </tbody></table>
   </article>
 </section>
+<div id="page-wait-mask" class="page-wait-mask" hidden><div><strong>处理中</strong><p>请稍候...</p></div></div>
+{{ questions_for_client|json_script:"regular-questions-data" }}
+<script>
+  (() => {
+    const dataNode = document.getElementById("regular-questions-data");
+    if (!dataNode) return;
+    const questions = JSON.parse(dataNode.textContent || "[]");
+    const labels = {
+      type: { basic: "基础技能验证", basic_question: "基础技能验证", basic_skill: "基础技能验证", qa: "问答题", qa_question: "问答题", essay: "问答题" },
+      difficulty: { easy: "简单", middle: "中等", medium: "中等", hard: "较难" },
+      source: { llm: "大模型生成", local_fallback: "本地兜底", local_fallback_after_error: "模型失败后兜底" }
+    };
+    const text = (value, fallback = "-") => value || fallback;
+    const label = (group, value, fallback) => labels[group][value] || value || fallback;
+    const truncate = (value, max) => {
+      value = value || "";
+      return value.length > max ? `${value.slice(0, max)}...` : value;
+    };
+    const setSelected = (index) => {
+      const q = questions[index];
+      if (!q) return;
+      document.querySelectorAll("[data-question-row]").forEach((row) => row.classList.toggle("selected", row.dataset.questionRow === String(index)));
+      document.getElementById("question-preview-title").textContent = `${q._display_no || index + 1}. ${q.content || ""}`;
+      document.getElementById("question-preview-meta").textContent = `题型：${label("type", q.type, "问答题")}　能力：${text(q.skill)}　难度：${label("difficulty", q.difficulty, "-")}　来源：${label("source", q._ai_source, "来源未知")}`;
+      const answer = document.getElementById("question-preview-answer");
+      const answerHeading = document.getElementById("question-answer-heading");
+      const hasAnswer = Boolean(q.reference_answer);
+      answer.hidden = !hasAnswer;
+      answerHeading.hidden = !hasAnswer;
+      answer.textContent = q.reference_answer || "";
+      const points = document.getElementById("question-preview-points");
+      points.replaceChildren(...((q.scoring_points || []).length ? q.scoring_points : ["暂无评分要点，请重新生成或人工补充。"]).map((point) => {
+        const li = document.createElement("li");
+        li.textContent = point;
+        return li;
+      }));
+      document.getElementById("question-action-index").value = index;
+      const next = document.getElementById("next-question-link");
+      const nextIndex = index + 1;
+      if (questions[nextIndex]) {
+        next.hidden = false;
+        next.dataset.index = String(nextIndex);
+        next.href = `?q=${nextIndex}`;
+        next.querySelector("span").textContent = `${truncate(questions[nextIndex].content, 24)} ›`;
+      } else {
+        next.hidden = true;
+        next.dataset.index = "";
+        next.href = "#";
+      }
+      const url = new URL(window.location.href);
+      url.searchParams.set("q", index);
+      window.history.replaceState(null, "", url);
+    };
+    document.querySelectorAll(".question-nav").forEach((link) => {
+      link.addEventListener("click", (event) => {
+        event.preventDefault();
+        setSelected(Number(link.dataset.index));
+      });
+    });
+    const next = document.getElementById("next-question-link");
+    if (next) {
+      next.addEventListener("click", (event) => {
+        event.preventDefault();
+        if (next.dataset.index !== "") setSelected(Number(next.dataset.index));
+      });
+    }
+    document.querySelectorAll(".js-wait-form").forEach((form) => {
+      form.addEventListener("submit", () => {
+        const mask = document.getElementById("page-wait-mask");
+        if (mask) {
+          mask.hidden = false;
+          mask.querySelector("p").textContent = form.dataset.waitText || "正在处理，请稍候...";
+        }
+        // 注意：不能在 submit 事件里同步禁用触发的提交按钮，
+        // 部分 Chromium 内核会因此取消表单提交，导致页面不刷新。
+        // 用 setTimeout 延迟到下一个事件循环再禁用，保证提交先发出。
+        setTimeout(() => {
+          form.querySelectorAll("button").forEach((button) => {
+            button.disabled = true;
+            button.dataset.originalText = button.textContent;
+            button.textContent = "处理中...";
+          });
+        }, 0);
+      });
+    });
+  })();
+</script>
 {% endblock %}

@@ -1,56 +1,10 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-env/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Virtual Environment
-.venv/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# macOS
 .DS_Store
-.AppleDouble
-.LSOverride
-Icon
-._*
+.zcode/
+cloudflared
 
-# IDEs
-.vscode/
-.idea/
-
-# Project-specific sqlite/database
-*.sqlite3
-db.sqlite3
-
-# Django media and static
-/code/smart_recruitment/data/exports/*
-!/code/smart_recruitment/data/exports/.gitkeep
-/code/smart_recruitment/data/resumes/*
-!/code/smart_recruitment/data/resumes/.gitkeep
-/code/smart_recruitment/data/submissions/*
-!/code/smart_recruitment/data/submissions/.gitkeep
-
-# Environment variables
-.env
-.env.local
-.env.*.local
+code/smart_recruitment/.env
+code/smart_recruitment/.venv/
+code/smart_recruitment/.run/
+code/smart_recruitment/data/
+code/smart_recruitment/**/*.pyc
+code/smart_recruitment/**/__pycache__/

@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% block title %}新建招聘评测任务｜智能招聘评测系统{% endblock %}
-{% block breadcrumb %}招聘任务 / <strong>新建招聘评测任务</strong>{% endblock %}
+{% block breadcrumb %}招聘任务 / <strong>新建招聘测评任务（第1步：岗位信息）</strong>{% endblock %}
 {% block content %}
 <section class="title-row">
   <div>
     <h1>新建招聘评测任务</h1>
-    <p>填写岗位信息与候选人简历，创建评测任务后系统将自动进入岗位与简历分析。</p>
+    <p>选择岗位模板自动带入岗位字段、填写岗位要求并上传候选人简历（可选），提交后系统将解析简历并进入候选人信息确认。</p>
   </div>
 </section>
 
@@ -15,6 +15,7 @@
     <article class="panel form-panel">
       <h2><span class="section-icon">▣</span>岗位信息</h2>
       <div class="field-grid">
+        <label class="wide"><span>岗位模板</span>{{ form.position_template }}<small>选择模板后自动带入下方字段，可再修改</small></label>
         <label><span>招聘岗位</span>{{ form.position_name }}</label>
         <label><span>用人部门</span>{{ form.department_name }}</label>
         <label><span>岗位级别</span>{{ form.job_level }}</label>
@@ -23,39 +24,61 @@
         <label><span>计划完成时间</span>{{ form.planned_finish_at }}</label>
         <label class="wide"><span>岗位要求</span>{{ form.raw_job_description }}</label>
       </div>
-      <div class="soft-actions">
-        <button type="button" class="btn">▤ 选择岗位模板</button>
-        <button type="button" class="btn">□ 粘贴JD内容</button>
-      </div>
     </article>
 
     <article class="panel form-panel">
-      <h2><span class="section-icon">●</span>候选人信息</h2>
+      <h2><span class="section-icon">●</span>候选人简历（可选）</h2>
       <div class="field-grid">
-        <label><span>候选人姓名</span>{{ form.candidate_name }}</label>
-        <label><span>工作年限（可选）</span><input placeholder="如：4年"></label>
-        <label><span>学历（可选）</span><select><option>本科</option><option>硕士</option></select></label>
-        <label><span>当前公司（可选）</span><input placeholder="请输入当前公司"></label>
-        <label><span>邮箱（可选）</span>{{ form.candidate_email }}</label>
-        <label><span>电话（可选）</span>{{ form.candidate_mobile }}</label>
-        <label class="wide"><span>上传PDF简历</span><div class="upload-box">{{ form.resume_file }}<strong>将PDF文件拖拽到此处，或点击上传</strong><small>支持PDF格式，文件大小不超过20MB</small></div></label>
+        <label class="wide"><span>上传PDF简历</span><div class="upload-box">{{ form.resume_file }}<strong>将PDF文件拖拽到此处，或点击上传</strong><small>支持PDF格式，文件大小不超过20MB；未上传可在下一步手动填写候选人信息</small></div></label>
       </div>
+      <input type="hidden" name="enable_development_task" value="{{ form.enable_development_task.value|default:'on' }}">
+      <label class="checker"><input type="checkbox" name="enable_development_task" {% if form.enable_development_task.value %}checked{% endif %}> 启用现场开发题</label>
     </article>
   </section>
 
   <section class="auto-flow panel">
-    <strong>创建后将自动执行</strong>
-    <span>岗位要求结构化</span>
-    <span>简历解析</span>
-    <span>待验证能力清单生成</span>
-    <span>进入简历能力匹配页</span>
-    <p>题目不会在本页面直接生成，系统将在待验证项确认后再生成普通题和现场开发题建议。</p>
+    <strong>提交后将依次执行</strong>
+    <span>岗位模板带入</span>
+    <span>简历结构化解析（如已上传）</span>
+    <span>候选人信息确认</span>
+    <span>岗位与简历分析</span>
+    <p>候选人信息将在下一步确认页面填写或核对，确认后再进入岗位与简历分析。</p>
   </section>
 
   <section class="footer-actions">
     <a class="btn" href="{% url 'task-list' %}">取消</a>
-    <button class="btn" type="submit" name="draft" disabled>保存草稿</button>
-    <button class="btn primary" type="submit">创建并开始分析</button>
+    <button class="btn primary" type="submit">提交并继续</button>
   </section>
 </form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var select = document.getElementById("id_position_template");
+  if (!select) return;
+  var base = "{% url 'position-template-list' %}"; // /tasks/position-templates/
+  select.addEventListener("change", function () {
+    var pk = select.value;
+    if (!pk) return;
+    fetch(base + pk + "/json/", { headers: { "X-Requested-With": "fetch" } })
+      .then(function (r) { if (!r.ok) throw new Error("模板不存在"); return r.json(); })
+      .then(function (data) {
+        if (!data) return;
+        setVal("id_position_name", data.name);
+        setVal("id_department_name", data.department_name);
+        if (data.job_level) setVal("id_job_level", data.job_level);
+        setVal("id_raw_job_description", data.raw_job_description);
+      })
+      .catch(function (err) { console.warn("加载岗位模板失败", err); });
+  });
+
+  function setVal(id, value) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    if (value === null || value === undefined) value = "";
+    el.value = value;
+  }
+})();
+</script>
 {% endblock %}

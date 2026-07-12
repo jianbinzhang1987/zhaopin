@@ -55,6 +55,47 @@ class Position(TimeStampedModel):
         return f"{self.name} v{self.version}"
 
 
+class PositionTemplate(TimeStampedModel):
+    STATUS_CHOICES = [
+        ("draft", "草稿"),
+        ("published", "已发布"),
+        ("disabled", "停用"),
+    ]
+
+    name = models.CharField("岗位名称", max_length=128)
+    department = models.ForeignKey(Department, verbose_name="所属部门", null=True, blank=True, on_delete=models.SET_NULL)
+    job_level = models.CharField("岗位级别", max_length=20, choices=Position.LEVEL_CHOICES, default="middle")
+    scenario = models.CharField("适用场景", max_length=64, default="社会招聘")
+    description = models.TextField("岗位描述", blank=True)
+    responsibilities = models.JSONField("岗位职责", default=list)
+    requirements = models.JSONField("任职要求", default=list)
+    technical_tags = models.JSONField("技术方向", default=list)
+    keywords = models.JSONField("岗位关键词", default=list)
+    status = models.CharField("状态", max_length=20, choices=STATUS_CHOICES, default="draft")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name="创建人", null=True, blank=True, on_delete=models.SET_NULL)
+    published_by = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="published_position_templates", verbose_name="发布人", null=True, blank=True, on_delete=models.SET_NULL)
+    published_at = models.DateTimeField("发布时间", null=True, blank=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+        verbose_name = "岗位模板"
+        verbose_name_plural = "岗位模板"
+
+    def __str__(self) -> str:
+        return self.name
+
+    @property
+    def raw_job_description(self) -> str:
+        parts = [self.description.strip()]
+        if self.responsibilities:
+            parts.append("岗位职责：\n" + "\n".join(f"{idx}. {item}" for idx, item in enumerate(self.responsibilities, start=1)))
+        if self.requirements:
+            parts.append("任职要求：\n" + "\n".join(f"{idx}. {item}" for idx, item in enumerate(self.requirements, start=1)))
+        if self.technical_tags or self.keywords:
+            parts.append("技能标签：" + "、".join([*self.technical_tags, *self.keywords]))
+        return "\n\n".join(part for part in parts if part)
+
+
 class PositionSkill(TimeStampedModel):
     LEVEL_CHOICES = [
         ("understand", "了解"),
@@ -197,7 +238,7 @@ class RecruitmentTask(TimeStampedModel):
     task_name = models.CharField("任务名称", max_length=256)
     position = models.ForeignKey(Position, verbose_name="岗位", on_delete=models.PROTECT)
     candidate = models.ForeignKey(Candidate, verbose_name="候选人", on_delete=models.PROTECT)
-    resume = models.ForeignKey(Resume, verbose_name="简历", on_delete=models.PROTECT)
+    resume = models.ForeignKey(Resume, verbose_name="简历", null=True, blank=True, on_delete=models.PROTECT)
     department = models.ForeignKey(Department, verbose_name="用人部门", null=True, blank=True, on_delete=models.SET_NULL)
     hr_owner = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="hr_tasks", verbose_name="HR负责人", on_delete=models.PROTECT)
     technical_owner = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="technical_tasks", verbose_name="技术负责人", on_delete=models.PROTECT)
@@ -220,6 +261,7 @@ class RecruitmentTask(TimeStampedModel):
     @property
     def next_action(self) -> str:
         mapping = {
+            "draft": "完善候选人信息",
             "pending_analysis": "等待分析",
             "pending_verification_confirmation": "确认验证项",
             "pending_question_review": "审核题目",
@@ -355,6 +397,7 @@ class AiJob(TimeStampedModel):
         ("cancelled", "已取消"),
     ]
     TYPE_CHOICES = [
+        ("parse_resume", "简历结构化解析"),
         ("analyze_position_resume", "岗位简历分析"),
         ("generate_regular_questions", "生成普通题"),
         ("generate_development_task", "生成开发题"),

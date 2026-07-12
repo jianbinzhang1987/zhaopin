@@ -10,6 +10,7 @@ from .models import (
     Evaluation,
     Position,
     PositionSkill,
+    PositionTemplate,
     RecruitmentTask,
     RegularQuestionSet,
     Resume,
@@ -27,6 +28,15 @@ class RecruitmentTaskAdmin(admin.ModelAdmin):
 
 admin.site.register(Department)
 admin.site.register(Position)
+
+
+@admin.register(PositionTemplate)
+class PositionTemplateAdmin(admin.ModelAdmin):
+    list_display = ("name", "department", "job_level", "scenario", "status", "created_by", "published_by", "published_at", "updated_at")
+    list_filter = ("status", "job_level", "department")
+    search_fields = ("name", "description", "responsibilities")
+    list_editable = ("status",)
+    raw_id_fields = ("department", "created_by", "published_by")
 admin.site.register(PositionSkill)
 admin.site.register(Candidate)
 admin.site.register(Attachment)
@@ -38,4 +48,3 @@ admin.site.register(Submission)
 admin.site.register(Evaluation)
 admin.site.register(AiJob)
 admin.site.register(AuditEvent)
-

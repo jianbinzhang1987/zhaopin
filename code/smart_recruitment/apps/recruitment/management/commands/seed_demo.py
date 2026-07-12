@@ -56,7 +56,7 @@ class Command(BaseCommand):
             defaults={"attachment": attachment, "parse_status": "success", "resume_text": "候选人有 Python、FastAPI、RAG 企业知识库项目经验。"},
         )
         task, _ = RecruitmentTask.objects.get_or_create(
-            task_no="TASK-20260715-001",
+            task_no="RT-20260715-001",
             defaults={
                 "task_name": "AI应用开发工程师 - 张某某",
                 "position": position,
@@ -118,4 +118,3 @@ class Command(BaseCommand):
         )
         Evaluation.objects.get_or_create(task=task, defaults={"regular_score": 78, "development_score": 82, "final_score": 80, "recommendation": "yes"})
         self.stdout.write(self.style.SUCCESS("演示数据已准备好：admin / admin123456"))
-

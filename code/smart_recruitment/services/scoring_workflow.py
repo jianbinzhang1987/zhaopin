@@ -4,6 +4,46 @@ from typing import Any
 from apps.recruitment.models import Evaluation
 from services.llm_client import LLMClient, LLMError, with_ai_metadata
 
+_VALID_RECOMMENDATIONS = {"strong_yes", "yes", "hold", "no"}
+
+
+def _as_dict(value, default=None) -> dict:
+    """把任意 LLM 返回强转成 dict；字符串会被包成 {"summary": <str>} 兜底。"""
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        if not value.strip():
+            return default if default is not None else {}
+        return {"summary": value.strip()}
+    if value is None:
+        return default if default is not None else {}
+    return {"summary": str(value)}
+
+
+def _as_list_of_dicts(value) -> list[dict]:
+    """把 LLM 返回强转成 list[dict]，供模板 {% for item in ... %} 使用。"""
+    if isinstance(value, list):
+        return [item for item in value if isinstance(item, dict)]
+    if isinstance(value, dict):
+        return [value] if value else []
+    if isinstance(value, str) and value.strip():
+        return [{"skill": "综合", "level": "待确认", "evidence": value.strip()}]
+    return []
+
+
+def _as_text(value) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        return "\n".join(str(x) for x in value)
+    return str(value)
+
+
+def _normalize_recommendation(value) -> str:
+    return value if value in _VALID_RECOMMENDATIONS else "hold"
+
 
 def _submission_snapshot(task, submission_type: str) -> list[dict[str, Any]]:
     rows = []
@@ -87,7 +127,7 @@ def apply_score(task, submission_type: str, payload: dict[str, Any]) -> Evaluati
     elif evaluation.development_score is not None:
         evaluation.final_score = development
 
-    suggestions = evaluation.ai_suggestion or {}
+    suggestions = _as_dict(evaluation.ai_suggestion)
     suggestions[f"{submission_type}_score"] = payload
     evaluation.ai_suggestion = suggestions
     evaluation.save()
@@ -120,7 +160,10 @@ def build_report(task, llm: LLMClient | None = None) -> dict[str, Any]:
     system_prompt = (
         "你是招聘评测报告助手。只返回JSON对象。"
         "JSON必须包含 ai_suggestion, skill_evaluations, strengths, risks, recommendation, report_markdown。"
-        "recommendation只能是 strong_yes, yes, hold, no。不要做绝对录用决定。"
+        "ai_suggestion 必须是一个对象(如 {\"summary\": \"...\", \"risk_level\": \"low|medium|high\"})。"
+        "skill_evaluations 必须是一个数组，每个元素是 {\"skill\": \"能力名\", \"level\": \"熟练|掌握|待确认\", \"evidence\": \"依据\"}。"
+        "strengths、risks、report_markdown 必须是字符串。"
+        "recommendation 只能是 strong_yes, yes, hold, no。不要做绝对录用决定。"
     )
     user_prompt = f"""
 岗位：{task.position.name}
@@ -128,7 +171,7 @@ def build_report(task, llm: LLMClient | None = None) -> dict[str, Any]:
 岗位要求：
 {task.position.raw_job_description}
 简历摘要：
-{task.resume.resume_text[:5000]}
+{(task.resume.resume_text if task.resume else "")[:5000]}
 分析结果：
 {getattr(getattr(task, "analysis", None), "skill_matches", [])}
 普通题：
@@ -145,7 +188,16 @@ ai_suggestion={getattr(evaluation, "ai_suggestion", {})}
 """
     try:
         payload = llm.json_completion(system_prompt, user_prompt)
-        return with_ai_metadata({**fallback, **{key: value for key, value in payload.items() if value}}, "llm")
+        merged: dict[str, Any] = {**fallback, **{key: value for key, value in payload.items() if value}}
+        # 大模型常把 ai_suggestion / skill_evaluations 返回成字符串，
+        # 这里强制规整成模板/下游可用的结构，避免写回 JSONField 后页面渲染崩坏。
+        merged["ai_suggestion"] = _as_dict(merged.get("ai_suggestion"), fallback["ai_suggestion"])
+        merged["skill_evaluations"] = _as_list_of_dicts(merged.get("skill_evaluations")) or fallback["skill_evaluations"]
+        merged["strengths"] = _as_text(merged.get("strengths")) or fallback["strengths"]
+        merged["risks"] = _as_text(merged.get("risks")) or fallback["risks"]
+        merged["recommendation"] = _normalize_recommendation(merged.get("recommendation"))
+        merged["report_markdown"] = _as_text(merged.get("report_markdown")) or fallback["report_markdown"]
+        return with_ai_metadata(merged, "llm")
     except LLMError as exc:
         fallback["_ai_error"] = str(exc)
         return with_ai_metadata(fallback, "local_fallback_after_error")

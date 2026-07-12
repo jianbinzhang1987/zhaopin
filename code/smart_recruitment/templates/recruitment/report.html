@@ -1,24 +1,71 @@
 {% extends "base.html" %}
+{% load recruitment_tags %}
 {% block title %}评分与评测报告｜智能招聘评测系统{% endblock %}
 {% block breadcrumb %}招聘任务 / <strong>评分与评测报告</strong>{% endblock %}
 {% block content %}
 <section class="title-row">
   <div>
     <h1>{{ task.position.name }} / {{ task.candidate.name }} / 评分与评测报告</h1>
-    <p>评测时间：2026-07-15 15:30　用人部门：{{ task.department.name|default:"AI研发部" }}　评审人：{{ task.technical_owner.get_full_name|default:task.technical_owner.username }}　当前状态：<span class="status amber">待确认报告</span></p>
+    <p>评测时间：{{ evaluation.confirmed_at|default:task.updated_at|date:"Y-m-d H:i" }}　用人部门：{{ task.department.name|default:"-" }}　评审人：{{ task.technical_owner.get_full_name|default:task.technical_owner.username }}　当前状态：<span class="status {% if task.overall_status == 'completed' %}green-soft{% else %}amber{% endif %}">{{ task.get_overall_status_display }}</span></p>
   </div>
   <div class="button-group">
-    <a class="btn" href="{% url 'enqueue-job' task.pk 'generate_report' %}">✧ AI辅助评分</a>
-    <button class="btn" form="report-form">▣ 保存评分</button>
-    <button class="btn primary" form="report-form">确认并生成报告 ›</button>
+    <button class="btn" form="report-form" name="action" value="save_report">保存评分</button>
+    <button class="btn primary" form="report-form" name="action" value="confirm_report">确认报告</button>
+  </div>
+</section>
+
+<section class="panel action-panel">
+  <div class="button-group">
+    <form method="post" action="{% url 'run-ai-now' task.pk 'score_regular_submission' %}" class="inline-form js-wait-form" data-wait-text="正在AI评分普通题，请稍候...">{% csrf_token %}<button class="btn" type="submit">普通题AI评分</button></form>
+    <form method="post" action="{% url 'run-ai-now' task.pk 'score_development_submission' %}" class="inline-form js-wait-form" data-wait-text="正在AI评分开发题，请稍候...">{% csrf_token %}<button class="btn" type="submit">开发题AI评分</button></form>
+    <form method="post" action="{% url 'run-ai-now' task.pk 'generate_report' %}" class="inline-form js-wait-form" data-wait-text="正在生成报告草稿，请稍候...">{% csrf_token %}<button class="btn" type="submit">生成报告草稿</button></form>
+    <a class="btn" href="{% url 'export-report' task.pk 'docx' %}">导出报告 Word</a>
+    <a class="btn" href="{% url 'export-report' task.pk 'pdf' %}">导出报告 PDF</a>
   </div>
 </section>
 
 <section class="metric-grid four">
-  <article class="metric-card blue"><span class="metric-icon">▤</span><div><p>普通题得分</p><strong>{{ evaluation.regular_score|default:"78" }}<small>/100</small></strong></div></article>
-  <article class="metric-card green"><span class="metric-icon">⌘</span><div><p>现场开发题得分</p><strong>{{ evaluation.development_score|default:"82" }}<small>/100</small></strong></div></article>
-  <article class="metric-card purple"><span class="metric-icon">◕</span><div><p>综合得分</p><strong>{{ evaluation.final_score|default:"80" }}<small>/100</small></strong></div></article>
-  <article class="metric-card orange"><span class="metric-icon">★</span><div><p>建议结论</p><strong>建议进入下一轮</strong></div></article>
+  <article class="metric-card blue"><span class="metric-icon">▤</span><div><p>普通题得分</p><strong>{% if evaluation.regular_score %}{{ evaluation.regular_score }}{% else %}-{% endif %}<small>/100</small></strong></div></article>
+  <article class="metric-card green"><span class="metric-icon">⌘</span><div><p>现场开发题得分</p><strong>{% if evaluation.development_score %}{{ evaluation.development_score }}{% else %}-{% endif %}<small>/100</small></strong></div></article>
+  <article class="metric-card purple"><span class="metric-icon">◕</span><div><p>综合得分</p><strong>{% if evaluation.final_score %}{{ evaluation.final_score }}{% else %}-{% endif %}<small>/100</small></strong></div></article>
+  <article class="metric-card orange"><span class="metric-icon">★</span><div><p>建议结论</p><strong>{{ evaluation.get_recommendation_display|default:"待生成" }}</strong></div></article>
+</section>
+
+<section class="bottom-grid submission-grid">
+  <article class="panel">
+    <h2>上传普通题回收结果</h2>
+    <form method="post" enctype="multipart/form-data" action="{% url 'upload-submission' task.pk %}" class="inline-upload">
+      {% csrf_token %}
+      <input type="hidden" name="submission_type" value="regular">
+      <input type="hidden" name="integrity_status" value="complete">
+      <label>
+        <span>答卷文件</span>
+        <input type="file" name="files">
+      </label>
+      <label>
+        <span>回收说明</span>
+        <input name="notes" placeholder="例如：候选人已按时提交">
+      </label>
+      <button class="btn primary" type="submit">上传普通题答卷</button>
+    </form>
+  </article>
+  <article class="panel">
+    <h2>上传现场开发题提交</h2>
+    <form method="post" enctype="multipart/form-data" action="{% url 'upload-submission' task.pk %}" class="inline-upload">
+      {% csrf_token %}
+      <input type="hidden" name="submission_type" value="development">
+      <input type="hidden" name="integrity_status" value="complete">
+      <label>
+        <span>提交文件</span>
+        <input type="file" name="files">
+      </label>
+      <label>
+        <span>回收说明</span>
+        <input name="notes" placeholder="例如：代码包与说明文档齐全">
+      </label>
+      <button class="btn primary" type="submit">上传开发题结果</button>
+    </form>
+  </article>
 </section>
 
 <form id="report-form" method="post">
@@ -26,41 +73,53 @@
   <section class="score-grid">
     <article class="panel">
       <h2>普通题评分</h2>
-      <table class="data-table compact score-table"><thead><tr><th>题目</th><th>满分</th><th>AI建议</th><th>人工确认</th><th>状态</th></tr></thead><tbody>
-        <tr><td>SQL注入风险</td><td>10</td><td>8</td><td><input value="8"></td><td><span class="status green-soft">已确认</span></td></tr>
-        <tr><td>RAG评估方法</td><td>10</td><td>7</td><td><input value="7"></td><td><span class="status green-soft">已确认</span></td></tr>
-        <tr><td>Prompt注入识别</td><td>10</td><td>8</td><td><input value="8"></td><td><span class="status green-soft">已确认</span></td></tr>
-        <tr><td>Redis缓存方案</td><td>10</td><td>7</td><td><input value="7"></td><td><span class="status green-soft">已确认</span></td></tr>
-        <tr><td><strong>合计</strong></td><td><strong>50</strong></td><td><strong>38</strong></td><td><strong>38</strong></td><td>—</td></tr>
+      <table class="data-table compact score-table"><thead><tr><th>题目</th><th>能力</th><th>难度</th><th>除题参考</th><th>满分</th><th>人工评分</th></tr></thead><tbody>
+        {% for q in question_set.questions %}
+          <tr>
+            <td>{{ q.content|truncatechars:24 }}</td>
+            <td>{{ q.skill|default:"-" }}</td>
+            <td>{{ q.difficulty|default:"-" }}</td>
+            <td>{{ q.reference_answer|truncatechars:30|default:"-" }}</td>
+            <td>{{ q.max_score|default:10 }}</td>
+            <td><input type="number" min="0" max="{{ q.max_score|default:10 }}" step="0.5" name="regular_score_{{ forloop.counter0 }}" value="{{ evaluation.ai_suggestion.regular_item_scores|default:''|get_item:forloop.counter0 }}"></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="empty">暂无普通题，请先生成题目。</td></tr>
+        {% endfor %}
       </tbody></table>
     </article>
 
     <article class="panel">
       <h2>能力评价</h2>
       <table class="data-table compact"><thead><tr><th>能力维度</th><th>评价结果</th><th>解读</th></tr></thead><tbody>
-        <tr><td>Python</td><td><span class="status green-soft">较好</span></td><td>代码基础扎实，能熟练使用常用库和设计模式</td></tr>
-        <tr><td>Prompt</td><td><span class="status green-soft">较好</span></td><td>能设计有效提示词，但可进一步结构化优化</td></tr>
-        <tr><td>RAG</td><td><span class="status amber">一般</span></td><td>具备基础实践，对评估方法掌握一般</td></tr>
-        <tr><td>Agent</td><td><span class="status red-soft">偏弱</span></td><td>实践经验较少，复杂场景不够丰富</td></tr>
+        {% for item in evaluation.skill_evaluations %}
+          <tr><td>{{ item.skill|default:"-" }}</td><td><span class="status blue-soft">{{ item.level|default:"待确认" }}</span></td><td>{{ item.evidence|default:"-" }}</td></tr>
+        {% empty %}
+          <tr><td colspan="3" class="empty">暂无能力评价，可先执行 AI 评分或生成报告草稿。</td></tr>
+        {% endfor %}
       </tbody></table>
     </article>
 
     <article class="panel">
       <h2>现场开发题评分</h2>
-      <table class="data-table compact score-table"><thead><tr><th>评分维度</th><th>满分</th><th>AI建议</th><th>人工确认</th><th>状态</th></tr></thead><tbody>
-        <tr><td>功能完整性</td><td>25</td><td>22</td><td><input value="22"></td><td><span class="status green-soft">已确认</span></td></tr>
-        <tr><td>代码质量</td><td>20</td><td>16</td><td><input value="16"></td><td><span class="status green-soft">已确认</span></td></tr>
-        <tr><td>Prompt与RAG设计</td><td>15</td><td>13</td><td><input value="13"></td><td><span class="status green-soft">已确认</span></td></tr>
-        <tr><td>README与说明</td><td>10</td><td>8</td><td><input value="8"></td><td><span class="status green-soft">已确认</span></td></tr>
-        <tr><td><strong>合计</strong></td><td><strong>100</strong></td><td><strong>82</strong></td><td><strong>82</strong></td><td>—</td></tr>
+      <table class="data-table compact score-table"><thead><tr><th>评分维度</th><th>满分</th><th>人工评分</th></tr></thead><tbody>
+        {% for criterion in dev_task.content.acceptance_criteria %}
+          <tr>
+            <td>{{ criterion }}</td>
+            <td>25</td>
+            <td><input type="number" min="0" max="25" step="0.5" name="development_score_{{ forloop.counter0 }}" value="{{ evaluation.ai_suggestion.development_item_scores|get_item:forloop.counter0 }}"></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="3" class="empty">暂无现场开发题，请先生成题目。</td></tr>
+        {% endfor %}
       </tbody></table>
     </article>
 
     <article class="panel risk-panel">
       <h2>优势与风险</h2>
       <div class="risk-grid">
-        <div><h3>优势</h3><ul><li>具备实际Python和RAG项目经验</li><li>能完成基础AI应用开发</li><li>对常见安全风险有认识</li></ul></div>
-        <div><h3>风险</h3><ul><li>Agent实践经验不足</li><li>RAG评估方法不够系统</li><li>测试与工程化能力需加强</li></ul></div>
+        <div><h3>优势</h3><label>{{ form.strengths }}</label></div>
+        <div><h3>风险</h3><label>{{ form.risks }}</label></div>
       </div>
     </article>
   </section>
@@ -73,7 +132,7 @@
         <label><span>后续面试关注点</span>{{ form.risks }}</label>
         <label><span>推荐结论</span>{{ form.recommendation }}</label>
       </div>
-      <div class="hidden-fields">{{ form.regular_score }}{{ form.development_score }}{{ form.final_score }}{{ form.strengths }}{{ form.confirmed }}</div>
+      <div class="hidden-fields">{{ form.regular_score }}{{ form.development_score }}{{ form.final_score }}{{ form.strengths }}</div>
     </article>
     <article class="panel evidence">
       <h2>评分依据来源</h2>
@@ -83,4 +142,26 @@
     </article>
   </section>
 </form>
+<div id="page-wait-mask" class="page-wait-mask" hidden><div><strong>处理中</strong><p>请稍候...</p></div></div>
+<script>
+  (() => {
+    document.querySelectorAll(".js-wait-form").forEach((form) => {
+      form.addEventListener("submit", () => {
+        const mask = document.getElementById("page-wait-mask");
+        if (mask) {
+          mask.hidden = false;
+          mask.querySelector("p").textContent = form.dataset.waitText || "正在处理，请稍候...";
+        }
+        // 不能在 submit 事件里同步禁用触发的提交按钮，部分 Chromium 内核会取消提交；
+        // 延迟到下一个事件循环再禁用，保证表单先发出。
+        setTimeout(() => {
+          form.querySelectorAll("button").forEach((button) => {
+            button.disabled = true;
+            button.textContent = "处理中...";
+          });
+        }, 0);
+      });
+    });
+  })();
+</script>
 {% endblock %}

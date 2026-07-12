@@ -11,6 +11,41 @@ from services.resume_parser import extract_pdf_text, summarize_resume_text
 from services.scoring_workflow import apply_score, build_report, score_submission
 
 
+def _profile_needs_reparse(resume) -> bool:
+    """简历画像是否需要重解析：空画像、或上次失败兜底、或无姓名。"""
+    if not resume:
+        return False
+    profile = resume.parsed_profile or {}
+    if not profile:
+        return True
+    source = (profile.get("_ai") or {}).get("source", "")
+    if source in {"local_fallback", "local_fallback_after_error"}:
+        return True
+    if profile.get("_ai_error"):
+        return True
+    if not profile.get("name"):
+        return True
+    return False
+
+
+def _reparse_resume(task, llm) -> None:
+    """重新抽取简历文本与结构化画像，写回 resume。无文件时静默跳过。"""
+    resume = task.resume
+    if not resume or not getattr(resume.attachment, "file", None):
+        return
+    try:
+        text = extract_pdf_text(resume.attachment.file.path)
+    except Exception:  # noqa: BLE001 - PDF 抽取失败不应打断分析流程
+        return
+    if text:
+        resume.resume_text = text
+    resume.parsed_profile = summarize_resume_text(text, llm)
+    resume.parse_status = "success" if text else "failed"
+    resume.parse_error = "" if text else "未能从PDF中抽取文本，可能是扫描件。"
+    resume.parsed_at = timezone.now()
+    resume.save(update_fields=["resume_text", "parsed_profile", "parse_status", "parse_error", "parsed_at", "updated_at"])
+
+
 class Command(BaseCommand):
     help = "运行轻量后台Worker，轮询 ai_job 表并处理队列任务。"
 
@@ -32,7 +67,7 @@ class Command(BaseCommand):
                     return
                 time.sleep(options["sleep"])
                 continue
-            self.execute(job)
+            self.execute_job(job)
             if options["once"]:
                 return
 
@@ -47,21 +82,34 @@ class Command(BaseCommand):
         job.save(update_fields=["status", "progress", "started_at", "updated_at"])
         return job
 
-    def execute(self, job):
+    def execute_job(self, job):
         try:
             task = job.task
             result = {}
-            if job.job_type == "analyze_position_resume":
+            if job.job_type == "parse_resume":
                 resume = task.resume
-                resume.parse_status = "processing"
-                resume.save(update_fields=["parse_status", "updated_at"])
-                text = extract_pdf_text(resume.attachment.file.path)
-                resume.resume_text = text
-                resume.parsed_profile = summarize_resume_text(text)
-                resume.parse_status = "success" if text else "failed"
-                resume.parse_error = "" if text else "未能从PDF中抽取文本，可能是扫描件。"
-                resume.parsed_at = timezone.now()
-                resume.save()
+                if not resume:
+                    result = {"skipped": "任务未关联简历"}
+                else:
+                    resume.parse_status = "processing"
+                    resume.save(update_fields=["parse_status", "updated_at"])
+                    job.progress = 30
+                    job.save(update_fields=["progress", "updated_at"])
+                    text = extract_pdf_text(resume.attachment.file.path)
+                    resume.resume_text = text
+                    job.progress = 60
+                    job.save(update_fields=["progress", "updated_at"])
+                    resume.parsed_profile = summarize_resume_text(text, self.llm)
+                    resume.parse_status = "success" if text else "failed"
+                    resume.parse_error = "" if text else "未能从PDF中抽取文本，可能是扫描件。"
+                    resume.parsed_at = timezone.now()
+                    resume.save()
+                    result = {"parse_status": resume.parse_status}
+            elif job.job_type == "analyze_position_resume":
+                # 第2步确认已建好 TaskAnalysis；此处负责岗位+简历分析
+                # 若简历画像为空或上次解析失败兜底，先重抽简历，否则 build_analysis 拿不到结构化字段
+                if _profile_needs_reparse(task.resume):
+                    _reparse_resume(task, self.llm)
                 analysis_payload = build_analysis(task, self.llm)
                 analysis = task.analysis
                 for field, value in analysis_payload.items():
@@ -80,7 +128,9 @@ class Command(BaseCommand):
             elif job.job_type == "generate_regular_questions":
                 question_set = generate_regular_questions(task, self.llm)
                 task.regular_question_status = "generated"
-                task.save(update_fields=["regular_question_status", "updated_at"])
+                if task.overall_status in {"pending_analysis", "pending_verification_confirmation"}:
+                    task.overall_status = "pending_question_review"
+                task.save(update_fields=["regular_question_status", "overall_status", "updated_at"])
                 result = {"question_set_id": question_set.id}
             elif job.job_type == "generate_development_task":
                 dev_task = generate_development_task(task, self.llm)
@@ -115,7 +165,7 @@ class Command(BaseCommand):
                 task.save(update_fields=["overall_status", "updated_at"])
                 result = payload
             else:
-                result = {"message": "该任务类型已排队，但MVP暂未实现具体处理。"}
+                result = {"message": "export_document 请通过页面同步下载，本命令暂不处理该类型。"}
             job.status = "success"
             job.progress = 100
             job.result_json = result

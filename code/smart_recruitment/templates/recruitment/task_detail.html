@@ -8,7 +8,7 @@
     <p>工作年限：{{ task.candidate.work_years|default:"-" }}　学历：{{ task.candidate.education|default:"-" }}　当前状态：<span class="status amber">{{ task.get_overall_status_display }}</span></p>
   </div>
   <div class="button-group">
-    <a class="btn" href="{% url 'enqueue-job' task.pk 'analyze_position_resume' %}">↻ 重新解析</a>
+    <form method="post" action="{% url 'run-ai-now' task.pk 'analyze_position_resume' %}" class="inline-form js-wait-form" data-wait-text="正在重新解析岗位与简历，请稍候...">{% csrf_token %}<button class="btn" type="submit">↻ 重新解析</button></form>
     <a class="btn primary" href="{% url 'task-analysis' task.pk %}">继续处理 ›</a>
   </div>
 </section>
@@ -45,7 +45,27 @@
       {% empty %}
         <tr><td colspan="5" class="empty">暂无后台任务。</td></tr>
       {% endfor %}
-    </tbody>
-  </table>
-</section>
+</tbody>
+    </table>
+  </section>
+<div id="page-wait-mask" class="page-wait-mask" hidden><div><strong>处理中</strong><p>请稍候...</p></div></div>
+<script>
+  (() => {
+    document.querySelectorAll(".js-wait-form").forEach((form) => {
+      form.addEventListener("submit", () => {
+        const mask = document.getElementById("page-wait-mask");
+        if (mask) {
+          mask.hidden = false;
+          mask.querySelector("p").textContent = form.dataset.waitText || "正在处理，请稍候...";
+        }
+        setTimeout(() => {
+          form.querySelectorAll("button").forEach((button) => {
+            button.disabled = true;
+            button.textContent = "处理中...";
+          });
+        }, 0);
+      });
+    });
+  })();
+</script>
 {% endblock %}

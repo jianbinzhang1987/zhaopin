@@ -1,37 +1,94 @@
 {% extends "base.html" %}
+{% load recruitment_tags %}
 {% block title %}现场开发题交付｜智能招聘评测系统{% endblock %}
 {% block breadcrumb %}招聘任务 / <strong>现场开发题交付</strong>{% endblock %}
 {% block content %}
 <section class="title-row">
   <div>
     <h1>{{ task.position.name }} / {{ task.candidate.name }} / 现场开发题交付</h1>
-    <p>交付方式：提前发送　完成方式：线下开发　回收状态：<span class="status amber">待发送</span>　截止时间：2026-07-15</p>
+    <p>交付方式：提前发送　完成方式：线下开发　状态：<span class="status amber">{{ dev_task.get_status_display|default:"待生成" }}</span>　版本：v{{ dev_task.version|default:"-" }}　更新时间：{{ dev_task.updated_at|date:"Y-m-d H:i:s"|default:"-" }}　来源：{{ dev_task.content|get_item:"_ai"|get_item:"source"|ai_source_label }}　截止时间：{{ dev_task.deadline|date:"Y-m-d"|default:"待设置" }}</p>
   </div>
   <div class="button-group">
-    <button class="btn">✎ 编辑题目</button>
-    <button class="btn">◉ 预览说明</button>
-    <form method="post">{% csrf_token %}<button class="btn primary">发送给候选人</button></form>
+    <a class="btn" href="{% url 'regular-questions' task.pk %}">‹ 返回普通题审核</a>
+    {% if dev_task.status == "sent" or task.development_task_status == "sent" %}
+      <span class="status green-soft">已发送</span>
+    {% else %}
+      <form method="post" class="inline-form js-wait-form" data-wait-text="正在更新交付状态...">{% csrf_token %}<button class="btn primary" name="action" value="send" type="submit" {% if not dev_task %}disabled{% endif %}>发送给候选人</button></form>
+    {% endif %}
   </div>
 </section>
+
+{% if dev_task.content|get_item:"_ai_error" %}
+  <section class="warn-box">模型生成失败，已使用本地兜底题目。原因：{{ dev_task.content|get_item:"_ai_error"|truncatechars:180 }}</section>
+{% endif %}
 
 <section class="content-grid three dev-grid">
   <article class="panel overview-list">
     <h2>题目概览</h2>
-    <p><span>题目名称：</span><strong>{{ dev_task.content.background|default:"企业制度问答辅助模块" }}</strong></p>
-    <p><span>目标：</span><strong>实现一个简单的AI辅助功能模块</strong></p>
+    <p><span>题目名称：</span><strong>{{ dev_task.content.title|default:"暂无现场开发题" }}</strong></p>
+    <p><span>出题方向：</span><strong>{{ dev_task.content.direction|default:"自动选择" }}</strong></p>
+    <p><span>目标：</span><strong>{{ dev_task.content.goal|default:"-" }}</strong></p>
     <p><span>开发时长：</span><strong>{{ dev_task.content.duration|default:"3天" }}</strong></p>
-    <p><span>是否允许使用大模型：</span><strong>允许</strong></p>
-    <p><span>是否允许联网：</span><strong>允许</strong></p>
-    <p><span>提交方式：</span><strong>压缩包 + README</strong></p>
+    <p><span>是否允许使用大模型：</span><strong>{% if dev_task.content.constraints.allow_llm == False %}不允许{% else %}允许{% endif %}</strong></p>
+    <p><span>是否允许联网：</span><strong>{% if dev_task.content.constraints.allow_internet == False %}不允许{% else %}允许{% endif %}</strong></p>
+    <p><span>提交方式：</span><strong>{{ dev_task.content.deliverables|as_list|join:" + "|default:"压缩包 + README" }}</strong></p>
     <div class="info-note">独立交付，不与普通题目混合导出</div>
+    <form method="post" class="dev-regenerate-form js-wait-form" data-wait-text="正在按方向重新生成现场开发题，请稍候...">
+      {% csrf_token %}
+      <label>
+        <span>调整方向</span>
+        <select name="direction">
+          <option value="">自动选择方向</option>
+          <option value="RAG智能问答" {% if dev_task.content.direction == "RAG智能问答" %}selected{% endif %}>RAG智能问答</option>
+          <option value="Agent工具调用" {% if dev_task.content.direction == "Agent工具调用" %}selected{% endif %}>Agent工具调用</option>
+          <option value="AI工程平台" {% if dev_task.content.direction == "AI工程平台" %}selected{% endif %}>AI工程平台</option>
+          <option value="模型评估与优化" {% if dev_task.content.direction == "模型评估与优化" %}selected{% endif %}>模型评估与优化</option>
+        </select>
+      </label>
+      <input name="direction_custom" placeholder="自定义方向，例如：RAG评估体系">
+      <button class="btn" name="action" value="regenerate" type="submit">↻ 重新生成题目</button>
+    </form>
   </article>
 
   <article class="panel dev-description">
     <h2>题目说明</h2>
-    <section><h3>业务背景</h3><p>{{ dev_task.content.background|default:"公司内部需要一个企业制度问答辅助模块，帮助员工快速检索和理解企业制度文档内容，提升内部信息获取效率。" }}</p></section>
-    <section><h3>任务要求</h3><p>基于提供的企业制度文档，实现文档读取、问答、引用来源展示，并进行基础安全处理。</p></section>
-    <section><h3>交付内容</h3><p>可运行的系统代码、说明文档与部署/运行说明、README。</p></section>
-    <section><h3>验收重点</h3><p>功能完整可用，回答准确且展示引用来源，具备基础安全与校验。</p></section>
+    <section><h3>业务背景</h3><p>{{ dev_task.content.background|default:"暂无业务背景，请先重新生成现场开发题。" }}</p></section>
+    <section><h3>任务要求</h3>
+      <ul class="blue-list">
+        {% for item in dev_task.content.requirements|as_list %}
+          <li>{{ item }}</li>
+        {% empty %}
+          <li>暂无任务要求。</li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% if dev_task.content.constraints.notes %}
+      <section><h3>约束条件</h3>
+        <ul class="blue-list">
+          {% for item in dev_task.content.constraints.notes|as_list %}
+            <li>{{ item }}</li>
+          {% endfor %}
+        </ul>
+      </section>
+    {% endif %}
+    <section><h3>交付内容</h3>
+      <ul class="blue-list">
+        {% for item in dev_task.content.deliverables|as_list %}
+          <li>{{ item }}</li>
+        {% empty %}
+          <li>暂无交付内容。</li>
+        {% endfor %}
+      </ul>
+    </section>
+    <section><h3>验收重点</h3>
+      <ul class="blue-list">
+        {% for item in dev_task.content.acceptance_criteria|as_list %}
+          <li>{{ item }}</li>
+        {% empty %}
+          <li>暂无验收标准。</li>
+        {% endfor %}
+      </ul>
+    </section>
   </article>
 
   <article class="panel tracking">
@@ -42,20 +99,43 @@
       <li>候选人线下完成</li>
       <li>回收结果并评审</li>
     </ol>
-    <dl class="kv-list boxed"><dt>发送状态</dt><dd><span class="status amber">待发送</span></dd><dt>回收状态</dt><dd>未回收</dd><dt>评审安排</dt><dd>待安排</dd></dl>
-    <div class="button-group full"><button class="btn">下载题目包</button><button class="btn">查看发送记录</button></div>
+    <dl class="kv-list boxed">
+      <dt>发送状态</dt><dd><span class="status amber">{{ dev_task.get_status_display|default:"待生成" }}</span></dd>
+      <dt>回收状态</dt><dd>{% if dev_task.collected_at %}已回收{% else %}未回收{% endif %}</dd>
+      <dt>评审安排</dt><dd>{% if task.overall_status == "pending_scoring" %}待评分{% elif task.overall_status == "completed" %}已完成{% else %}待安排{% endif %}</dd>
+    </dl>
+    <div class="button-group full">
+      {% if dev_task %}
+        <a class="btn primary" href="{% url 'export-development' task.pk 'docx' %}">下载题目包 Word</a>
+        <a class="btn" href="{% url 'export-development' task.pk 'pdf' %}">下载题目包 PDF</a>
+      {% else %}
+        <span class="btn" aria-disabled="true">下载题目包 Word</span>
+        <span class="btn" aria-disabled="true">下载题目包 PDF</span>
+      {% endif %}
+    </div>
   </article>
 </section>
-
-<section class="bottom-grid">
-  <article class="panel">
-    <h2>候选人收到的内容</h2>
-    <ul class="blue-list"><li>题目说明PDF</li><li>开发要求清单</li><li>提交规范</li><li>截止时间</li></ul>
-    <div class="warn-box">现场开发题会提前发给候选人，在线下独立完成后再回收评审。</div>
-  </article>
-  <article class="panel">
-    <h2>面试官评审关注</h2>
-    <ul class="blue-list"><li>功能完整性</li><li>代码质量</li><li>Prompt与RAG设计</li><li>安全与校验策略</li><li>README与说明文档</li></ul>
-  </article>
-</section>
+<div id="page-wait-mask" class="page-wait-mask" hidden><div><strong>处理中</strong><p>请稍候...</p></div></div>
+<script>
+  (() => {
+    document.querySelectorAll(".js-wait-form").forEach((form) => {
+      form.addEventListener("submit", () => {
+        const mask = document.getElementById("page-wait-mask");
+        if (mask) {
+          mask.hidden = false;
+          mask.querySelector("p").textContent = form.dataset.waitText || "正在处理，请稍候...";
+        }
+        // 注意：不能在 submit 事件里同步禁用触发的提交按钮，
+        // 部分 Chromium 内核会因此取消表单提交，导致页面不刷新。
+        // 用 setTimeout 延迟到下一个事件循环再禁用，保证提交先发出。
+        setTimeout(() => {
+          form.querySelectorAll("button").forEach((button) => {
+            button.disabled = true;
+            button.textContent = "处理中...";
+          });
+        }, 0);
+      });
+    });
+  })();
+</script>
 {% endblock %}

@@ -14,8 +14,8 @@
       <strong>智能招聘评测</strong>
     </a>
     <nav class="side-nav">
-      <a class="active" href="{% url 'task-list' %}"><span class="nav-ico">▣</span>招聘任务</a>
-      <a href="#"><span class="nav-ico">□</span>岗位模板</a>
+      <a class="{% if request.resolver_match.url_name == 'task-list' or request.resolver_match.url_name == 'task-create' or request.resolver_match.url_name == 'task-detail' %}active{% endif %}" href="{% url 'task-list' %}"><span class="nav-ico">▣</span>招聘任务</a>
+      <a class="{% if request.resolver_match.url_name == 'position-template-list' or request.resolver_match.url_name == 'position-template-detail' %}active{% endif %}" href="{% url 'position-template-list' %}"><span class="nav-ico">□</span>岗位模板</a>
       <a href="#"><span class="nav-ico">▤</span>题目模板库</a>
       <a href="#"><span class="nav-ico">◎</span>评测结果</a>
       <a href="#"><span class="nav-ico">◌</span>评分规则</a>
@@ -57,5 +57,6 @@
       {% block content %}{% endblock %}
     </main>
   </div>
+  {% block scripts %}{% endblock %}
 </body>
 </html>

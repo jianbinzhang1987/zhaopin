@@ -8,10 +8,10 @@
     <p>工作年限：{{ task.candidate.work_years|default:"4年" }}　学历：{{ task.candidate.education|default:"本科" }}　当前公司：{{ task.candidate.current_company|default:"某科技公司" }}　岗位级别：{{ task.position.get_job_level_display }}　当前状态：<span class="status amber">待确认</span></p>
   </div>
   <div class="button-group">
-    <a class="btn" href="{% url 'enqueue-job' task.pk 'analyze_position_resume' %}">↻ 重新解析</a>
-    <button class="btn">☷ 调整能力项</button>
+    <form method="post" action="{% url 'run-ai-now' task.pk 'analyze_position_resume' %}" class="inline-form js-wait-form" data-wait-text="正在重新解析岗位与简历，请稍候...">{% csrf_token %}<button class="btn" type="submit">↻ 重新解析</button></form>
     <form method="post">{% csrf_token %}<button class="btn">✓ 确认验证项</button></form>
-    <a class="btn primary" href="{% url 'regular-questions' task.pk %}">生成题目 ›</a>
+    <a class="btn" href="{% url 'development-task' task.pk %}">现场开发题配置</a>
+    <a class="btn primary" href="{% url 'regular-questions' task.pk %}">进入普通题审核</a>
   </div>
 </section>
 
@@ -67,16 +67,28 @@
         {% endfor %}
       </tbody>
     </table>
-    <div class="info-note">现场开发设计将单独生成并单独交付，不与普通题目混合导出。</div>
+    <div class="info-note">确认验证项后，系统会基于验证项生成普通题和现场开发题建议，进入审核环节即可调整。</div>
   </article>
 </section>
 
-<section class="panel delivery-panel">
-  <h2>交付建议</h2>
-  <div class="delivery-grid">
-    <div><strong>普通题目交付</strong><p><span class="file-chip">Excel</span><span class="file-chip">Word</span><span class="file-chip">PDF</span></p><small>适合用人部门查看，也可导出候选人版试卷</small></div>
-    <div><strong>现场开发题交付</strong><p><span class="file-chip code">代码题</span></p><small>单独成题，提前发给候选人，线下完成并回收结果</small></div>
-    <div class="right-actions"><a class="btn" href="{% url 'regular-questions' task.pk %}">进入普通题目审核</a><a class="btn primary" href="{% url 'development-task' task.pk %}">进入现场开发题配置</a></div>
-  </div>
-</section>
+<div id="page-wait-mask" class="page-wait-mask" hidden><div><strong>处理中</strong><p>请稍候...</p></div></div>
+<script>
+  (() => {
+    document.querySelectorAll(".js-wait-form").forEach((form) => {
+      form.addEventListener("submit", () => {
+        const mask = document.getElementById("page-wait-mask");
+        if (mask) {
+          mask.hidden = false;
+          mask.querySelector("p").textContent = form.dataset.waitText || "正在处理，请稍候...";
+        }
+        setTimeout(() => {
+          form.querySelectorAll("button").forEach((button) => {
+            button.disabled = true;
+            button.textContent = "处理中...";
+          });
+        }, 0);
+      });
+    });
+  })();
+</script>
 {% endblock %}

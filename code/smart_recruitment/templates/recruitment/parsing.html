@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}简历解析中｜智能招聘评测系统{% endblock %}
+{% block breadcrumb %}招聘任务 / <strong>简历解析中</strong>{% endblock %}
+{% block content %}
+<section class="title-row">
+  <div>
+    <h1>正在解析候选人简历</h1>
+    <p>系统正在使用大模型结构化解析简历，完成后将自动进入候选人信息确认页。通常需要 10~30 秒，请稍候。</p>
+  </div>
+</section>
+
+<section class="panel parse-panel">
+  <div class="parse-card">
+    <div class="parse-spinner" aria-hidden="true"></div>
+    <h2 id="parse-title">简历解析中…</h2>
+    <p class="muted">任务编号：{{ task.task_no }}</p>
+    <div class="progress-bar"><div id="parse-progress" class="progress-fill initial"></div></div>
+    <p id="parse-status" class="muted small">排队中…</p>
+    <a class="btn parse-skip" href="{% url 'candidate-confirm' task.pk %}">跳过等待，直接填写</a>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var statusUrl = "{% url 'task-parsing-status' task.pk %}";
+  var redirectUrl = "{% url 'candidate-confirm' task.pk %}";
+  var titleEl = document.getElementById("parse-title");
+  var statusEl = document.getElementById("parse-status");
+  var barEl = document.getElementById("parse-progress");
+  var timer = null;
+
+  function poll() {
+    fetch(statusUrl, { headers: { "X-Requested-With": "fetch" } })
+      .then(function (r) { return r.json(); })
+      .then(function (data) { handle(data); })
+      .catch(function () { schedule(3000); });
+  }
+
+  function handle(data) {
+    var prog = data.progress || 0;
+    barEl.style.width = prog + "%";
+    if (data.status === "queued") {
+      statusEl.textContent = "排队中…";
+    } else if (data.status === "running") {
+      statusEl.textContent = "正在解析简历…";
+      titleEl.textContent = "简历解析中…";
+    } else if (data.status === "success") {
+      statusEl.textContent = "解析完成，即将跳转…";
+      titleEl.textContent = "解析完成";
+      barEl.style.width = "100%";
+      return jump();
+    } else if (data.status === "failed") {
+      statusEl.textContent = "解析失败（" + (data.error || "未知错误") + "），将进入手动填写。";
+      titleEl.textContent = "解析失败";
+      return jump();
+    } else if (data.status === "skipped") {
+      statusEl.textContent = "未上传简历，进入手动填写。";
+      return jump();
+    }
+    schedule(1500);
+  }
+
+  function schedule(ms) {
+    if (timer) return;
+    timer = setTimeout(function () { timer = null; poll(); }, ms);
+  }
+
+  function jump() {
+    if (timer) { clearTimeout(timer); timer = null; }
+    setTimeout(function () { window.location.href = redirectUrl; }, 500);
+  }
+
+  poll();
+})();
+</script>
+{% endblock %}

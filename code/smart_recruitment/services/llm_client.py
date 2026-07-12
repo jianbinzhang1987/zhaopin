@@ -1,12 +1,19 @@
 import json
 import os
 import re
+import ssl
+import subprocess
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from typing import Any
 
 from django.conf import settings
+
+try:
+    import certifi
+except ImportError:  # pragma: no cover - certifi 为软依赖
+    certifi = None
 
 
 class LLMError(RuntimeError):
@@ -33,32 +40,19 @@ class LLMClient:
         )
 
     def json_completion(self, system_prompt: str, user_prompt: str) -> dict[str, Any]:
-        payload = {
+        payload: dict[str, Any] = {
             "model": self.model,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
             "temperature": 0.2,
-            "response_format": {"type": "json_object"},
         }
-        request = urllib.request.Request(
-            f"{self.base_url}/chat/completions",
-            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-            },
-            method="POST",
-        )
-        try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:
-                raw = response.read().decode("utf-8")
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")
-            raise LLMError(f"模型接口返回错误：{exc.code} {detail[:500]}") from exc
-        except urllib.error.URLError as exc:
-            raise LLMError(f"无法连接模型接口：{exc}") from exc
+        # 仅在模型接口支持时附上 response_format；当前上游不支持，故默认不发送。
+        response_format = getattr(settings, "LLM_RESPONSE_FORMAT", None)
+        if response_format:
+            payload["response_format"] = response_format
+        raw = self._post_chat_completion(payload)
 
         try:
             data = json.loads(raw)
@@ -66,6 +60,57 @@ class LLMClient:
         except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
             raise LLMError(f"模型响应格式不符合预期：{raw[:500]}") from exc
         return parse_json_content(content)
+
+    def _post_chat_completion(self, payload: dict[str, Any]) -> str:
+        body = json.dumps(payload, ensure_ascii=False)
+        request = urllib.request.Request(
+            f"{self.base_url}/chat/completions",
+            data=body.encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+                # 部分 Cloudflare 网关会拦截默认 urllib UA，使用浏览器 UA 规避
+                "User-Agent": "Mozilla/5.0 (compatible; SmartRecruitment/1.0)",
+            },
+            method="POST",
+        )
+        ssl_context = None
+        if certifi is not None:
+            ssl_context = ssl.create_default_context(cafile=certifi.where())
+        try:
+            with urllib.request.urlopen(request, timeout=self.timeout, context=ssl_context) as response:
+                return response.read().decode("utf-8")
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            raise LLMError(f"模型接口返回错误：{exc.code} {detail[:500]}") from exc
+        except urllib.error.URLError as exc:
+            return self._post_chat_completion_with_curl(body, exc)
+
+    def _post_chat_completion_with_curl(self, body: str, original_exc: Exception) -> str:
+        cmd = [
+            "curl",
+            "-sS",
+            "--fail-with-body",
+            "--max-time",
+            str(self.timeout),
+            "-H",
+            f"Authorization: Bearer {self.api_key}",
+            "-H",
+            "Content-Type: application/json",
+            "-H",
+            "User-Agent: Mozilla/5.0 (compatible; SmartRecruitment/1.0)",
+            "-d",
+            body,
+            f"{self.base_url}/chat/completions",
+        ]
+        try:
+            result = subprocess.run(cmd, check=False, capture_output=True, text=True, timeout=self.timeout + 5)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise LLMError(f"无法连接模型接口：{original_exc}") from exc
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout or str(original_exc)).strip()
+            raise LLMError(f"无法连接模型接口：{detail[:500]}") from original_exc
+        return result.stdout
 
 
 def parse_json_content(content: str) -> dict[str, Any]:
