@@ -3,6 +3,7 @@ import os
 import re
 import ssl
 import subprocess
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -26,6 +27,7 @@ class LLMClient:
     model: str
     base_url: str
     timeout: int = 60
+    max_retries: int = 3
 
     @classmethod
     def from_settings(cls) -> "LLMClient | None":
@@ -37,6 +39,7 @@ class LLMClient:
             model=getattr(settings, "LLM_MODEL", "gpt-4.1-mini"),
             base_url=getattr(settings, "LLM_BASE_URL", "https://api.openai.com/v1").rstrip("/"),
             timeout=getattr(settings, "LLM_TIMEOUT_SECONDS", 60),
+            max_retries=getattr(settings, "LLM_MAX_RETRIES", 3),
         )
 
     def json_completion(self, system_prompt: str, user_prompt: str) -> dict[str, Any]:
@@ -63,6 +66,22 @@ class LLMClient:
 
     def _post_chat_completion(self, payload: dict[str, Any]) -> str:
         body = json.dumps(payload, ensure_ascii=False)
+        last_error: LLMError | None = None
+        attempts = max(1, self.max_retries + 1)
+        for attempt in range(1, attempts + 1):
+            try:
+                return self._post_chat_completion_once(body)
+            except LLMError as exc:
+                if not str(exc).startswith("无法连接模型接口："):
+                    raise
+                last_error = exc
+                if attempt >= attempts:
+                    break
+                time.sleep(min(0.5 * attempt, 2))
+        message = str(last_error) if last_error else "无法连接模型接口：未知网络错误"
+        raise LLMError(f"{message}（已重试 {attempts - 1} 次）") from last_error
+
+    def _post_chat_completion_once(self, body: str) -> str:
         request = urllib.request.Request(
             f"{self.base_url}/chat/completions",
             data=body.encode("utf-8"),
@@ -116,11 +135,14 @@ class LLMClient:
 def parse_json_content(content: str) -> dict[str, Any]:
     try:
         parsed = json.loads(content)
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as original_exc:
         match = re.search(r"\{.*\}", content, flags=re.S)
         if not match:
             raise LLMError(f"模型没有返回JSON对象：{content[:500]}")
-        parsed = json.loads(match.group(0))
+        try:
+            parsed = json.loads(match.group(0))
+        except json.JSONDecodeError:
+            raise LLMError(f"模型返回的JSON格式不合法：{content[:500]}") from original_exc
     if not isinstance(parsed, dict):
         raise LLMError("模型返回结果不是JSON对象")
     return parsed

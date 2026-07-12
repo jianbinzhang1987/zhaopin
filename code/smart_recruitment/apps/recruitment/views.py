@@ -15,6 +15,7 @@ from .forms import CandidateConfirmForm, EvaluationForm, PositionTemplateForm, S
 from .models import AiJob, Attachment, AuditEvent, Department, DevelopmentTask, Evaluation, PositionTemplate, RecruitmentTask, Submission, TaskAnalysis
 from services.analysis_workflow import build_analysis, generate_development_task, generate_regular_question_variant, generate_regular_questions
 from services import export_document as export_service
+from services.candidate_sync import sync_candidate_from_profile
 from services.llm_client import LLMError, get_llm_client
 from services.position_template_parser import TemplateParseError, extract_position_template, extract_template_file
 from services.resume_parser import extract_pdf_text, summarize_resume_text
@@ -55,6 +56,7 @@ def _reparse_resume(task, llm) -> None:
     resume.parse_error = "" if text else "未能从PDF中抽取文本，可能是扫描件。"
     resume.parsed_at = timezone.now()
     resume.save(update_fields=["resume_text", "parsed_profile", "parse_status", "parse_error", "parsed_at", "updated_at"])
+    sync_candidate_from_profile(task, resume.parsed_profile)
 
 
 # 将简历解析返回的学历描述映射到 CandidateConfirmForm.EDUCATION_CHOICES 的 key
@@ -95,6 +97,27 @@ def _profile_to_form_initial(profile: dict) -> dict:
         "candidate_mobile": profile.get("mobile", ""),
         "skills_text": "、".join(skills) if isinstance(skills, list) else "",
     }
+
+
+def _candidate_to_form_initial(task, profile: dict | None = None) -> dict:
+    initial = _profile_to_form_initial(profile or {})
+    candidate = task.candidate
+    if candidate.name and candidate.name != "（待补充）":
+        initial["candidate_name"] = candidate.name
+    if candidate.work_years is not None:
+        initial["work_years"] = candidate.work_years
+    if candidate.education:
+        initial["education"] = _normalize_education(candidate.education)
+    for field, attr in (
+        ("current_company", "current_company"),
+        ("current_position", "current_position"),
+        ("candidate_email", "email"),
+        ("candidate_mobile", "mobile"),
+    ):
+        value = getattr(candidate, attr, "")
+        if value:
+            initial[field] = value
+    return initial
 
 
 def log_event(task, user, event_type: str, message: str, metadata=None) -> None:
@@ -364,32 +387,34 @@ def task_parsing_status(request, pk):
 def candidate_confirm(request, pk):
     """第2步：候选人信息确认页。展示 LLM 解析回填结果，用户核对/手填后确认建任务。"""
     task = get_object_or_404(RecruitmentTask.objects.select_related("candidate", "position", "resume"), pk=pk)
-    # 已确认过的任务不允许再回到此页
-    if task.overall_status not in ("draft",):
-        messages.warning(request, "该任务的候选人信息已确认，无需再次确认。")
-        return redirect("task-detail", pk=task.pk)
     resume = task.resume
     profile = resume.parsed_profile if (resume and resume.parse_status == "success") else {}
     parsed_ok = bool(profile and profile.get("name"))
+    is_initial_confirm = task.overall_status == "draft"
     if request.method == "POST":
         form = CandidateConfirmForm(request.POST)
         if form.is_valid():
             form.save(task, request.user)
-            TaskAnalysis.objects.create(task=task)
-            task.overall_status = "pending_analysis"
-            task.save(update_fields=["overall_status", "updated_at"])
-            AiJob.objects.create(task=task, job_type="analyze_position_resume", input_json={"task_id": task.id})
-            log_event(task, request.user, "candidate_confirmed", "确认候选人信息并进入岗位简历分析")
-            messages.success(request, "候选人信息已确认，后台分析任务已进入队列。")
-            return redirect("task-detail", pk=task.pk)
+            if is_initial_confirm:
+                TaskAnalysis.objects.get_or_create(task=task)
+                task.overall_status = "pending_analysis"
+                task.save(update_fields=["overall_status", "updated_at"])
+                AiJob.objects.create(task=task, job_type="analyze_position_resume", input_json={"task_id": task.id})
+                log_event(task, request.user, "candidate_confirmed", "确认候选人信息并进入岗位简历分析")
+                messages.success(request, "候选人信息已确认，后台分析任务已进入队列。")
+                return redirect("task-detail", pk=task.pk)
+            log_event(task, request.user, "candidate_updated", "更新候选人信息")
+            messages.success(request, "候选人信息已更新。")
+            return redirect("candidate-confirm", pk=task.pk)
     else:
-        form = CandidateConfirmForm(initial=_profile_to_form_initial(profile))
+        form = CandidateConfirmForm(initial=_candidate_to_form_initial(task, profile))
     return render(request, "recruitment/candidate_confirm.html", {
         "task": task,
         "form": form,
         "parsed_ok": parsed_ok,
         "has_resume": bool(resume),
         "parse_failed": bool(resume and resume.parse_status == "failed"),
+        "is_initial_confirm": is_initial_confirm,
     })
 
 
@@ -565,13 +590,13 @@ def analysis_view(request, pk):
 
 
 @login_required
-@transaction.atomic
 def regular_questions_view(request, pk):
     task = get_object_or_404(RecruitmentTask, pk=pk)
     question_set = task.regular_question_sets.first()
     selected_index = _safe_int(request.GET.get("q"), default=0)
+    can_generate_questions = _status_allowed(task, *_QUESTION_REGENERATE_ALLOWED_STATUSES)
     if request.method == "GET" and (not question_set or not question_set.questions):
-        if _status_allowed(task, *_QUESTION_REGENERATE_ALLOWED_STATUSES):
+        if can_generate_questions:
             question_set = _generate_initial_regular_questions(task, request.user)
             messages.info(request, f"已自动生成普通题：版本 v{question_set.version}，请审核确认。")
         else:
@@ -579,7 +604,7 @@ def regular_questions_view(request, pk):
     if request.method == "POST":
         action = request.POST.get("action")
         if action == "regenerate_set":
-            if not _status_allowed(task, *_QUESTION_REGENERATE_ALLOWED_STATUSES):
+            if not can_generate_questions:
                 log_event(
                     task,
                     request.user,
@@ -652,13 +677,12 @@ def regular_questions_view(request, pk):
         log_event(task, request.user, "regular_questions_confirmed", "确认普通题目集")
         messages.success(request, "普通题已确认。")
         return redirect("development-task", pk=task.pk)
-    context = {"task": task, "question_set": question_set}
+    context = {"task": task, "question_set": question_set, "can_generate_questions": can_generate_questions}
     context.update(_regular_question_context(question_set, selected_index))
     return render(request, "recruitment/regular_questions.html", context)
 
 
 @login_required
-@transaction.atomic
 def development_task_view(request, pk):
     task = get_object_or_404(RecruitmentTask, pk=pk)
     dev_task = task.development_tasks.order_by("-version").first()
@@ -905,7 +929,6 @@ _AI_ACTION_LABELS = {
 
 
 @login_required
-@transaction.atomic
 def run_ai_action_now(request, pk, job_type):
     """报告页/任务页上的 AI 动作改为同步执行：直接调用 LLM 工作流写库，跳过 AiJob 队列。
 
@@ -925,51 +948,54 @@ def run_ai_action_now(request, pk, job_type):
         return redirect(redirect_to) if redirect_to else redirect(fallback_url, pk=pk)
 
     try:
-        llm = get_llm_client()
-        if job_type == "analyze_position_resume":
-            # 重新解析前：若简历画像为空或上次解析失败兜底，先把简历重抽一遍，
-            # 否则 build_analysis 拿不到 name/skills 等结构化字段，候选人确认页就回填不出信息。
-            if _profile_needs_reparse(task.resume):
-                _reparse_resume(task, llm)
-            # 与 run_worker 的 analyze_position_resume 分支保持一致
-            analysis_payload = build_analysis(task, llm)
-            analysis = task.analysis
-            for field, value in analysis_payload.items():
-                setattr(analysis, field, value)
-            analysis.save()
-            if not task.regular_question_sets.exists():
-                generate_regular_questions(task, llm)
-            if task.development_task_status != "not_enabled" and not task.development_tasks.exists():
-                generate_development_task(task, llm)
-            task.overall_status = "pending_verification_confirmation"
-            task.regular_question_status = "generated"
-            if task.development_task_status == "pending_generation":
-                task.development_task_status = "reviewing"
-            task.save(update_fields=["overall_status", "regular_question_status", "development_task_status", "updated_at"])
-        elif job_type == "score_regular_submission":
-            payload = score_submission(task, "regular", llm)
-            apply_score(task, "regular", payload)
-            task.regular_question_status = "scored"
-            task.overall_status = "pending_scoring" if task.development_task_status not in {"scored", "not_enabled"} else "pending_report_confirmation"
-            task.save(update_fields=["regular_question_status", "overall_status", "updated_at"])
-        elif job_type == "score_development_submission":
-            payload = score_submission(task, "development", llm)
-            apply_score(task, "development", payload)
-            task.development_task_status = "scored"
-            task.overall_status = "pending_report_confirmation" if task.regular_question_status == "scored" else "pending_scoring"
-            task.save(update_fields=["development_task_status", "overall_status", "updated_at"])
-        elif job_type == "generate_report":
-            payload = build_report(task, llm)
-            evaluation, _ = Evaluation.objects.get_or_create(task=task)
-            evaluation.ai_suggestion = payload["ai_suggestion"]
-            evaluation.skill_evaluations = payload["skill_evaluations"]
-            evaluation.strengths = payload.get("strengths", evaluation.strengths)
-            evaluation.risks = payload.get("risks", evaluation.risks)
-            evaluation.recommendation = payload.get("recommendation", evaluation.recommendation)
-            evaluation.report_markdown = payload["report_markdown"]
-            evaluation.save()
-            task.overall_status = "pending_report_confirmation"
-            task.save(update_fields=["overall_status", "updated_at"])
+        with transaction.atomic():
+            llm = get_llm_client()
+            if job_type == "analyze_position_resume":
+                # 重新解析前：若简历画像为空或上次解析失败兜底，先把简历重抽一遍，
+                # 否则 build_analysis 拿不到 name/skills 等结构化字段，候选人确认页就回填不出信息。
+                if _profile_needs_reparse(task.resume):
+                    _reparse_resume(task, llm)
+                elif task.resume:
+                    sync_candidate_from_profile(task, task.resume.parsed_profile)
+                # 与 run_worker 的 analyze_position_resume 分支保持一致
+                analysis_payload = build_analysis(task, llm)
+                analysis, _ = TaskAnalysis.objects.get_or_create(task=task)
+                for field, value in analysis_payload.items():
+                    setattr(analysis, field, value)
+                analysis.save()
+                if not task.regular_question_sets.exists():
+                    generate_regular_questions(task, llm)
+                if task.development_task_status != "not_enabled" and not task.development_tasks.exists():
+                    generate_development_task(task, llm)
+                task.overall_status = "pending_verification_confirmation"
+                task.regular_question_status = "generated"
+                if task.development_task_status == "pending_generation":
+                    task.development_task_status = "reviewing"
+                task.save(update_fields=["overall_status", "regular_question_status", "development_task_status", "updated_at"])
+            elif job_type == "score_regular_submission":
+                payload = score_submission(task, "regular", llm)
+                apply_score(task, "regular", payload)
+                task.regular_question_status = "scored"
+                task.overall_status = "pending_scoring" if task.development_task_status not in {"scored", "not_enabled"} else "pending_report_confirmation"
+                task.save(update_fields=["regular_question_status", "overall_status", "updated_at"])
+            elif job_type == "score_development_submission":
+                payload = score_submission(task, "development", llm)
+                apply_score(task, "development", payload)
+                task.development_task_status = "scored"
+                task.overall_status = "pending_report_confirmation" if task.regular_question_status == "scored" else "pending_scoring"
+                task.save(update_fields=["development_task_status", "overall_status", "updated_at"])
+            elif job_type == "generate_report":
+                payload = build_report(task, llm)
+                evaluation, _ = Evaluation.objects.get_or_create(task=task)
+                evaluation.ai_suggestion = payload["ai_suggestion"]
+                evaluation.skill_evaluations = payload["skill_evaluations"]
+                evaluation.strengths = payload.get("strengths", evaluation.strengths)
+                evaluation.risks = payload.get("risks", evaluation.risks)
+                evaluation.recommendation = payload.get("recommendation", evaluation.recommendation)
+                evaluation.report_markdown = payload["report_markdown"]
+                evaluation.save()
+                task.overall_status = "pending_report_confirmation"
+                task.save(update_fields=["overall_status", "updated_at"])
     except LLMError as exc:
         log_event(task, request.user, "ai_action_sync_failed", f"{label}失败（模型）", {"job_type": job_type, "error": str(exc)[:500]})
         messages.error(request, f"{label}失败：{exc}")

@@ -10,13 +10,17 @@
   </div>
   <div class="button-group">
     <form method="post" class="inline-form js-wait-form" data-wait-text="正在确认题目并进入现场开发题配置...">{% csrf_token %}<button class="btn primary" name="action" value="confirm" type="submit">确认题目</button></form>
-    <a class="btn" href="{% url 'development-task' task.pk %}">现场开发题配置</a>
+    <a class="btn js-wait-link" data-wait-text="正在进入现场开发题配置，请稍候..." href="{% url 'development-task' task.pk %}">现场开发题配置</a>
     <form method="post" class="inline-form js-wait-form" data-wait-text="正在重新生成整套题目，请稍候...">
       {% csrf_token %}
-      <button class="btn" name="action" value="regenerate_set" type="submit">{% if questions %}↻ 重新生成整套{% else %}生成整套题目{% endif %}</button>
+      <button class="btn" name="action" value="regenerate_set" type="submit" {% if not can_generate_questions %}disabled title="请先完成候选人信息确认和岗位简历分析"{% endif %}>{% if questions %}↻ 重新生成整套{% else %}生成整套题目{% endif %}</button>
     </form>
   </div>
 </section>
+
+{% if not can_generate_questions %}
+  <section class="warn-box">当前任务还不能生成普通题，请先完成候选人信息确认和岗位简历分析。</section>
+{% endif %}
 
 {% if question_ai_error %}
   <section class="warn-box">模型生成失败，已使用本地兜底题目。原因：{{ question_ai_error|truncatechars:180 }}</section>
@@ -49,7 +53,7 @@
       <h3 id="question-preview-title">{{ selected_display_no }}. {{ selected_question.content }}</h3>
       <p id="question-preview-meta">题型：{{ selected_question.type|question_type_label }}　能力：{{ selected_question.skill|default:"-" }}　难度：{{ selected_question.difficulty|difficulty_label }}　来源：{{ selected_question|get_item:"_ai_source"|ai_source_label }}</p>
       <h4 id="question-answer-heading" {% if not selected_question.reference_answer %}hidden{% endif %}>参考答案：</h4>
-      <p id="question-preview-answer" {% if not selected_question.reference_answer %}hidden{% endif %}>{{ selected_question.reference_answer }}</p>
+      <div id="question-preview-answer" class="formatted-text" {% if not selected_question.reference_answer %}hidden{% endif %}></div>
       <h4>评分要点：</h4>
       <ul id="question-preview-points">
         {% for point in selected_question.scoring_points %}
@@ -117,6 +121,12 @@
     const dataNode = document.getElementById("regular-questions-data");
     if (!dataNode) return;
     const questions = JSON.parse(dataNode.textContent || "[]");
+    const showWaitMask = (text) => {
+      const mask = document.getElementById("page-wait-mask");
+      if (!mask) return;
+      mask.hidden = false;
+      mask.querySelector("p").textContent = text || "正在处理，请稍候...";
+    };
     const labels = {
       type: { basic: "基础技能验证", basic_question: "基础技能验证", basic_skill: "基础技能验证", qa: "问答题", qa_question: "问答题", essay: "问答题" },
       difficulty: { easy: "简单", middle: "中等", medium: "中等", hard: "较难" },
@@ -127,6 +137,43 @@
     const truncate = (value, max) => {
       value = value || "";
       return value.length > max ? `${value.slice(0, max)}...` : value;
+    };
+    const cleanMarkdown = (value) => (value || "")
+      .replace(/\r\n?/g, "\n")
+      .replace(/^\s{0,3}#{1,6}\s*/gm, "")
+      .replace(/\*\*(.*?)\*\*/g, "$1")
+      .replace(/`([^`]*)`/g, "$1")
+      .replace(/([。；;])\s*(?=\d+[.、]\s*)/g, "$1\n")
+      .replace(/\s+(?=\d+[.、]\s*[^：:。\n]{2,28}[：:])/g, "\n")
+      .replace(/\s+-\s+(?=[^，。；;]{2,32}[：:])/g, "\n- ")
+      .replace(/(条件边[：:])\s*/g, "\n$1\n")
+      .trim();
+    const renderFormattedText = (node, value) => {
+      node.replaceChildren();
+      const cleaned = cleanMarkdown(value);
+      if (!cleaned) return;
+      const lines = cleaned.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+      let list = null;
+      const appendListItem = (content) => {
+        if (!list) {
+          list = document.createElement("ul");
+          node.appendChild(list);
+        }
+        const li = document.createElement("li");
+        li.textContent = content;
+        list.appendChild(li);
+      };
+      lines.forEach((line) => {
+        const listMatch = line.match(/^[-*•]\s*(.+)$/);
+        if (listMatch) {
+          appendListItem(listMatch[1]);
+          return;
+        }
+        list = null;
+        const paragraph = document.createElement("p");
+        paragraph.textContent = line;
+        node.appendChild(paragraph);
+      });
     };
     const setSelected = (index) => {
       const q = questions[index];
@@ -139,7 +186,7 @@
       const hasAnswer = Boolean(q.reference_answer);
       answer.hidden = !hasAnswer;
       answerHeading.hidden = !hasAnswer;
-      answer.textContent = q.reference_answer || "";
+      renderFormattedText(answer, q.reference_answer || "");
       const points = document.getElementById("question-preview-points");
       points.replaceChildren(...((q.scoring_points || []).length ? q.scoring_points : ["暂无评分要点，请重新生成或人工补充。"]).map((point) => {
         const li = document.createElement("li");
@@ -176,23 +223,39 @@
         if (next.dataset.index !== "") setSelected(Number(next.dataset.index));
       });
     }
+    const initialIndex = Number(new URL(window.location.href).searchParams.get("q") || "{{ selected_index|default:0 }}");
+    if (questions[initialIndex]) setSelected(initialIndex);
     document.querySelectorAll(".js-wait-form").forEach((form) => {
-      form.addEventListener("submit", () => {
-        const mask = document.getElementById("page-wait-mask");
-        if (mask) {
-          mask.hidden = false;
-          mask.querySelector("p").textContent = form.dataset.waitText || "正在处理，请稍候...";
-        }
-        // 注意：不能在 submit 事件里同步禁用触发的提交按钮，
-        // 部分 Chromium 内核会因此取消表单提交，导致页面不刷新。
-        // 用 setTimeout 延迟到下一个事件循环再禁用，保证提交先发出。
-        setTimeout(() => {
-          form.querySelectorAll("button").forEach((button) => {
-            button.disabled = true;
-            button.dataset.originalText = button.textContent;
-            button.textContent = "处理中...";
-          });
-        }, 0);
+      form.addEventListener("submit", (event) => {
+        if (form.dataset.waitSubmitting === "1") return;
+        event.preventDefault();
+        const submitter = event.submitter;
+        showWaitMask(form.dataset.waitText);
+        form.dataset.waitSubmitting = "1";
+        requestAnimationFrame(() => {
+          if (submitter && typeof form.requestSubmit === "function") {
+            form.requestSubmit(submitter);
+          } else {
+            form.submit();
+          }
+          setTimeout(() => {
+            form.querySelectorAll("button").forEach((button) => {
+              button.disabled = true;
+              button.dataset.originalText = button.textContent;
+              button.textContent = "处理中...";
+            });
+          }, 0);
+        });
+      });
+    });
+    document.querySelectorAll(".js-wait-link").forEach((link) => {
+      link.addEventListener("click", (event) => {
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+        event.preventDefault();
+        showWaitMask(link.dataset.waitText);
+        requestAnimationFrame(() => {
+          window.location.href = link.href;
+        });
       });
     });
   })();

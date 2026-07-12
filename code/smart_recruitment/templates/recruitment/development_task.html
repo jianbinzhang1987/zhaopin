@@ -9,7 +9,7 @@
     <p>交付方式：提前发送　完成方式：线下开发　状态：<span class="status amber">{{ dev_task.get_status_display|default:"待生成" }}</span>　版本：v{{ dev_task.version|default:"-" }}　更新时间：{{ dev_task.updated_at|date:"Y-m-d H:i:s"|default:"-" }}　来源：{{ dev_task.content|get_item:"_ai"|get_item:"source"|ai_source_label }}　截止时间：{{ dev_task.deadline|date:"Y-m-d"|default:"待设置" }}</p>
   </div>
   <div class="button-group">
-    <a class="btn" href="{% url 'regular-questions' task.pk %}">‹ 返回普通题审核</a>
+    <a class="btn js-wait-link" data-wait-text="正在返回普通题审核..." href="{% url 'regular-questions' task.pk %}">‹ 返回普通题审核</a>
     <button class="btn" type="button" id="open-regenerate-modal-btn">↻ 重新生成题目</button>
     {% if dev_task.status == "sent" or task.development_task_status == "sent" %}
       <span class="status green-soft">已发送</span>
@@ -145,14 +145,22 @@
 
 <script>
   (() => {
+    const modal = document.getElementById("regenerate-modal");
+    const hideModal = () => {
+      if (modal) modal.hidden = true;
+    };
+    const showWaitMask = (text) => {
+      hideModal();
+      const mask = document.getElementById("page-wait-mask");
+      if (!mask) return;
+      mask.hidden = false;
+      mask.querySelector("p").textContent = text || "正在处理，请稍候...";
+    };
+
     // 1. Wait overlay mask listener
     document.querySelectorAll(".js-wait-form").forEach((form) => {
       form.addEventListener("submit", () => {
-        const mask = document.getElementById("page-wait-mask");
-        if (mask) {
-          mask.hidden = false;
-          mask.querySelector("p").textContent = form.dataset.waitText || "正在处理，请稍候...";
-        }
+        showWaitMask(form.dataset.waitText);
         setTimeout(() => {
           form.querySelectorAll("button").forEach((button) => {
             button.disabled = true;
@@ -163,9 +171,13 @@
         }, 0);
       });
     });
+    document.querySelectorAll(".js-wait-link").forEach((link) => {
+      link.addEventListener("click", () => {
+        showWaitMask(link.dataset.waitText);
+      });
+    });
 
     // 2. Modal open/close listeners
-    const modal = document.getElementById("regenerate-modal");
     const openBtn = document.getElementById("open-regenerate-modal-btn");
     const closeBtn = document.getElementById("close-modal-btn");
     const cancelBtn = document.getElementById("cancel-modal-btn");
@@ -175,10 +187,6 @@
         modal.hidden = false;
       });
     }
-
-    const hideModal = () => {
-      if (modal) modal.hidden = true;
-    };
 
     if (closeBtn) closeBtn.addEventListener("click", hideModal);
     if (cancelBtn) cancelBtn.addEventListener("click", hideModal);

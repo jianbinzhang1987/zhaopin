@@ -9,6 +9,7 @@
   </div>
   <div class="button-group">
     <form method="post" action="{% url 'run-ai-now' task.pk 'analyze_position_resume' %}" class="inline-form js-wait-form" data-wait-text="正在重新解析岗位与简历，请稍候...">{% csrf_token %}<button class="btn" type="submit">↻ 重新解析</button></form>
+    <a class="btn" href="{% url 'candidate-confirm' task.pk %}">候选人信息</a>
     <a class="btn primary" href="{% url 'task-analysis' task.pk %}">继续处理 ›</a>
   </div>
 </section>
@@ -25,7 +26,7 @@
     <p class="preline">{{ task.position.raw_job_description }}</p>
   </article>
   <article class="panel">
-    <h2>候选人信息</h2>
+    <h2>候选人信息 <a class="text-link" href="{% url 'candidate-confirm' task.pk %}">查看/编辑</a></h2>
     <dl class="kv-list">
       <dt>姓名</dt><dd>{{ task.candidate.name }}</dd>
       <dt>手机</dt><dd>{{ task.candidate.mobile|default:"-" }}</dd>

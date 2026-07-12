@@ -9,9 +9,10 @@
   </div>
   <div class="button-group">
     <form method="post" action="{% url 'run-ai-now' task.pk 'analyze_position_resume' %}" class="inline-form js-wait-form" data-wait-text="正在重新解析岗位与简历，请稍候...">{% csrf_token %}<button class="btn" type="submit">↻ 重新解析</button></form>
+    <a class="btn" href="{% url 'candidate-confirm' task.pk %}">候选人信息</a>
     <form method="post">{% csrf_token %}<button class="btn">✓ 确认验证项</button></form>
-    <a class="btn" href="{% url 'development-task' task.pk %}">现场开发题配置</a>
-    <a class="btn primary" href="{% url 'regular-questions' task.pk %}">进入普通题审核</a>
+    <a class="btn js-wait-link" data-wait-text="正在进入现场开发题配置，首次进入可能会自动生成题目..." href="{% url 'development-task' task.pk %}">现场开发题配置</a>
+    <a class="btn primary js-wait-link" data-wait-text="正在进入普通题审核，首次进入可能会自动生成题目..." href="{% url 'regular-questions' task.pk %}">进入普通题审核</a>
   </div>
 </section>
 
@@ -74,19 +75,26 @@
 <div id="page-wait-mask" class="page-wait-mask" hidden><div><strong>处理中</strong><p>请稍候...</p></div></div>
 <script>
   (() => {
+    const showWaitMask = (text) => {
+      const mask = document.getElementById("page-wait-mask");
+      if (!mask) return;
+      mask.hidden = false;
+      mask.querySelector("p").textContent = text || "正在处理，请稍候...";
+    };
     document.querySelectorAll(".js-wait-form").forEach((form) => {
       form.addEventListener("submit", () => {
-        const mask = document.getElementById("page-wait-mask");
-        if (mask) {
-          mask.hidden = false;
-          mask.querySelector("p").textContent = form.dataset.waitText || "正在处理，请稍候...";
-        }
+        showWaitMask(form.dataset.waitText);
         setTimeout(() => {
           form.querySelectorAll("button").forEach((button) => {
             button.disabled = true;
             button.textContent = "处理中...";
           });
         }, 0);
+      });
+    });
+    document.querySelectorAll(".js-wait-link").forEach((link) => {
+      link.addEventListener("click", () => {
+        showWaitMask(link.dataset.waitText);
       });
     });
   })();

@@ -13,12 +13,14 @@ import re
 from typing import Any
 
 # reportlab 中文 CID 字体
+from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.cidfonts import UnicodeCIDFont
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import HRFlowable, KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from docx import Document
 
@@ -234,42 +236,125 @@ def _docx_bytes(doc: Document) -> bytes:
 def _pdf_styles():
     font = _ensure_cn_font()
     styles = getSampleStyleSheet()
-    # 继承内置样式但改用中文字体
-    normal = ParagraphStyle("cn_normal", parent=styles["Normal"], fontName=font, leading=18)
-    title = ParagraphStyle("cn_title", parent=styles["Title"], fontName=font, fontSize=18, leading=24)
-    h2 = ParagraphStyle("cn_h2", parent=styles["Heading2"], fontName=font, fontSize=13, leading=18, spaceBefore=10)
-    return {"normal": normal, "title": title, "h2": h2, "font": font}
+    normal = ParagraphStyle(
+        "cn_normal",
+        parent=styles["Normal"],
+        fontName=font,
+        fontSize=10.5,
+        leading=18,
+        textColor=colors.HexColor("#1f2937"),
+        alignment=TA_LEFT,
+    )
+    title = ParagraphStyle(
+        "cn_title",
+        parent=styles["Title"],
+        fontName=font,
+        fontSize=18,
+        leading=26,
+        alignment=TA_CENTER,
+        textColor=colors.HexColor("#111827"),
+        spaceAfter=12,
+    )
+    subtitle = ParagraphStyle(
+        "cn_subtitle",
+        parent=normal,
+        fontSize=9,
+        leading=13,
+        textColor=colors.HexColor("#667085"),
+        alignment=TA_CENTER,
+        spaceAfter=10,
+    )
+    h2 = ParagraphStyle(
+        "cn_h2",
+        parent=normal,
+        fontSize=13,
+        leading=19,
+        textColor=colors.HexColor("#111827"),
+        spaceBefore=12,
+        spaceAfter=7,
+    )
+    h3 = ParagraphStyle(
+        "cn_h3",
+        parent=normal,
+        fontSize=11.5,
+        leading=17,
+        textColor=colors.HexColor("#111827"),
+        spaceBefore=6,
+        spaceAfter=5,
+    )
+    meta = ParagraphStyle("cn_meta", parent=normal, fontSize=9, leading=14, textColor=colors.HexColor("#475467"))
+    label = ParagraphStyle("cn_label", parent=meta, textColor=colors.HexColor("#667085"))
+    bullet = ParagraphStyle("cn_bullet", parent=normal, leftIndent=12, firstLineIndent=-8, spaceAfter=3)
+    answer = ParagraphStyle(
+        "cn_answer",
+        parent=normal,
+        fontSize=10,
+        leading=17,
+        leftIndent=0,
+        rightIndent=0,
+        textColor=colors.HexColor("#344054"),
+    )
+    return {
+        "normal": normal,
+        "title": title,
+        "subtitle": subtitle,
+        "h2": h2,
+        "h3": h3,
+        "meta": meta,
+        "label": label,
+        "bullet": bullet,
+        "answer": answer,
+        "font": font,
+    }
+
+
+def _pdf_doc(buf: io.BytesIO, title: str) -> SimpleDocTemplate:
+    return SimpleDocTemplate(
+        buf,
+        pagesize=A4,
+        leftMargin=18 * mm,
+        rightMargin=18 * mm,
+        topMargin=18 * mm,
+        bottomMargin=18 * mm,
+        title=title,
+        author="智能招聘评测系统",
+    )
+
+
+def _build_pdf(doc: SimpleDocTemplate, story: list, styles) -> None:
+    title = doc.title or "智能招聘评测系统"
+
+    def draw_page(canvas, document):
+        canvas.saveState()
+        canvas.setFont(styles["font"], 8)
+        canvas.setFillColor(colors.HexColor("#98A2B3"))
+        canvas.drawString(document.leftMargin, A4[1] - 10 * mm, title[:42])
+        canvas.drawRightString(A4[0] - document.rightMargin, 10 * mm, f"第 {document.page} 页")
+        canvas.setStrokeColor(colors.HexColor("#EAECF0"))
+        canvas.line(document.leftMargin, A4[1] - 13 * mm, A4[0] - document.rightMargin, A4[1] - 13 * mm)
+        canvas.restoreState()
+
+    doc.build(story, onFirstPage=draw_page, onLaterPages=draw_page)
 
 
 def build_regular_questions_pdf(task: RecruitmentTask, with_answers: bool = True) -> tuple[str, bytes]:
     buf = io.BytesIO()
     styles = _pdf_styles()
-    doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=20 * mm, bottomMargin=20 * mm)
+    doc = _pdf_doc(buf, _title_for(task, "regular", with_answers))
     story = _pdf_meta_block(task, styles, kind="regular", with_answers=with_answers)
     questions = _questions_for_export(task)
     if not questions:
         story.append(Paragraph("暂无题目。", styles["normal"]))
     for idx, q in enumerate(questions, 1):
-        head = f"{idx}. [{_s(q.get('skill'))}] {_s(q.get('content'))}"
-        story.append(Paragraph(head, styles["h2"]))
-        story.append(Paragraph(f"题型 {_s(q.get('type'))} · 难度 {_s(q.get('difficulty'))}", styles["normal"]))
-        if with_answers:
-            ref = q.get("reference_answer")
-            if ref:
-                story.append(Paragraph("参考答案：", styles["normal"]))
-                story.append(Paragraph(_s(ref), styles["normal"]))
-            points = q.get("scoring_points") or []
-            if points:
-                story.append(Paragraph("评分要点：" + "；".join(_s(p) for p in points), styles["normal"]))
-        story.append(Spacer(1, 6))
-    doc.build(story)
+        _pdf_question(story, styles, idx, q, with_answers)
+    _build_pdf(doc, story, styles)
     return _safe_filename(task.task_no or "regular", "pdf"), buf.getvalue()
 
 
 def build_development_task_pdf(task: RecruitmentTask) -> tuple[str, bytes]:
     buf = io.BytesIO()
     styles = _pdf_styles()
-    doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=20 * mm, bottomMargin=20 * mm)
+    doc = _pdf_doc(buf, _title_for(task, "development", True))
     story = _pdf_meta_block(task, styles, kind="development", with_answers=True)
     dev = _dev_task_for_export(task)
     content = (dev.content if dev else {}) or {}
@@ -288,30 +373,31 @@ def build_development_task_pdf(task: RecruitmentTask) -> tuple[str, bytes]:
             _pdf_section(story, styles, "约束条件", text)
         _pdf_list(story, styles, "交付内容", content.get("deliverables"))
         _pdf_list(story, styles, "验收标准", content.get("acceptance_criteria"))
-    doc.build(story)
+    _build_pdf(doc, story, styles)
     return _safe_filename(task.task_no or "development", "pdf"), buf.getvalue()
 
 
 def build_report_pdf(task: RecruitmentTask) -> tuple[str, bytes]:
     buf = io.BytesIO()
     styles = _pdf_styles()
-    doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=20 * mm, bottomMargin=20 * mm)
+    doc = _pdf_doc(buf, _title_for(task, "report", True))
     story = _pdf_meta_block(task, styles, kind="report", with_answers=True)
     ev = getattr(task, "evaluation", None)
     if not ev:
         story.append(Paragraph("暂无评测报告数据。", styles["normal"]))
-        doc.build(story)
+        _build_pdf(doc, story, styles)
         return _safe_filename(task.task_no or "report", "pdf"), buf.getvalue()
-    score_table = Table(
+    score_table = _pdf_kv_table(
         [
             ["普通题得分", _score(ev.regular_score)],
             ["现场开发题得分", _score(ev.development_score)],
             ["综合得分", _score(ev.final_score)],
             ["建议结论", _recommendation_display(ev.recommendation)],
         ],
-        colWidths=[60 * mm, 70 * mm],
+        styles,
+        label_width=44 * mm,
+        value_width=52 * mm,
     )
-    score_table.setStyle(TableStyle([("FONTNAME", (0, 0), (-1, -1), styles["font"]), ("GRID", (0, 0), (-1, -1), 0.5, "#ccc")]))
     story.append(score_table)
     story.append(Spacer(1, 10))
     _pdf_section(story, styles, "优势", ev.strengths)
@@ -320,25 +406,56 @@ def build_report_pdf(task: RecruitmentTask) -> tuple[str, bytes]:
     if skills:
         story.append(Paragraph("能力评价", styles["h2"]))
         rows = [["能力", "评价", "依据"]] + [
-            [_s(s.get("skill")), _s(s.get("level")), _s(s.get("evidence"))] for s in skills
+            [_p(s.get("skill"), styles["normal"]), _p(s.get("level"), styles["normal"]), _p(s.get("evidence"), styles["normal"])] for s in skills
         ]
         sk = Table(rows, colWidths=[40 * mm, 30 * mm, 90 * mm])
-        sk.setStyle(TableStyle([("FONTNAME", (0, 0), (-1, -1), styles["font"]), ("GRID", (0, 0), (-1, -1), 0.5, "#ccc")]))
+        sk.setStyle(_pdf_table_style(styles, header=True))
         story.append(sk)
     if ev.report_markdown:
         _pdf_section(story, styles, "报告正文", ev.report_markdown)
-    doc.build(story)
+    _build_pdf(doc, story, styles)
     return _safe_filename(task.task_no or "report", "pdf"), buf.getvalue()
 
 
 def _pdf_meta_block(task: RecruitmentTask, styles, kind: str = "regular", with_answers: bool = True) -> list:
-    story = [Paragraph(_title_for(task, kind, with_answers), styles["title"])]
-    rows = [[k, _s(v)] for k, v in _kv_rows(task)]
-    meta = Table(rows, colWidths=[40 * mm, 120 * mm])
-    meta.setStyle(TableStyle([("FONTNAME", (0, 0), (-1, -1), styles["font"]), ("GRID", (0, 0), (-1, -1), 0.5, "#ccc")]))
+    title = _title_for(task, kind, with_answers)
+    story = [
+        Paragraph(title, styles["title"]),
+        Paragraph("智能招聘评测系统导出文档", styles["subtitle"]),
+        HRFlowable(width="100%", thickness=0.8, color=colors.HexColor("#EAECF0")),
+        Spacer(1, 8),
+    ]
+    meta = _pdf_kv_table(_kv_rows(task), styles, label_width=32 * mm, value_width=132 * mm)
     story.append(meta)
     story.append(Spacer(1, 12))
     return story
+
+
+def _pdf_question(story, styles, idx: int, q: dict[str, Any], with_answers: bool) -> None:
+    title = f"{idx}. [{_s(q.get('skill') or '-')}] {_s(q.get('content') or '-')}"
+    rows = [
+        [Paragraph(title, styles["h3"])],
+        [Paragraph(f"题型：{_s(q.get('type') or '-')}　难度：{_s(q.get('difficulty') or '-')}", styles["meta"])],
+    ]
+    if with_answers:
+        ref = q.get("reference_answer")
+        if ref:
+            rows.append([[Paragraph("<b>参考答案</b>", styles["label"]), Spacer(1, 3), Paragraph(_s(ref), styles["answer"])]])
+        points = q.get("scoring_points") or []
+        if points:
+            rows.append([[Paragraph("<b>评分要点</b>", styles["label"]), Spacer(1, 3), _pdf_bullets(points, styles)]])
+    card = Table(rows, colWidths=[164 * mm], splitByRow=1)
+    card.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#F8FAFC")),
+        ("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor("#D0D5DD")),
+        ("LINEBELOW", (0, 0), (-1, 0), 0.6, colors.HexColor("#EAECF0")),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 10),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+        ("TOPPADDING", (0, 0), (-1, -1), 7),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+    ]))
+    story.append(KeepTogether([card, Spacer(1, 8)]))
 
 
 def _pdf_section(story, styles, title: str, value: Any) -> None:
@@ -356,9 +473,54 @@ def _pdf_list(story, styles, title: str, items: Any) -> None:
     if isinstance(items, str):
         story.append(Paragraph(_s(items), styles["normal"]))
     else:
-        text = "；".join(_s(x) for x in items)
-        story.append(Paragraph(text, styles["normal"]))
+        story.append(_pdf_bullets(items, styles))
     story.append(Spacer(1, 6))
+
+
+def _pdf_bullets(items: Any, styles) -> Table:
+    rows = []
+    for item in items:
+        rows.append([Paragraph("-", styles["normal"]), Paragraph(_s(item), styles["normal"])])
+    bullets = Table(rows, colWidths=[6 * mm, 150 * mm])
+    bullets.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 3),
+        ("TOPPADDING", (0, 0), (-1, -1), 1),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
+        ("TEXTCOLOR", (0, 0), (0, -1), colors.HexColor("#0F6BFF")),
+    ]))
+    return bullets
+
+
+def _pdf_kv_table(rows: list[list[Any]], styles, label_width: float, value_width: float) -> Table:
+    data = [[_p(k, styles["label"]), _p(v, styles["normal"])] for k, v in rows]
+    table = Table(data, colWidths=[label_width, value_width], hAlign="LEFT")
+    table.setStyle(_pdf_table_style(styles))
+    return table
+
+
+def _pdf_table_style(styles, header: bool = False) -> TableStyle:
+    commands = [
+        ("FONTNAME", (0, 0), (-1, -1), styles["font"]),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#D0D5DD")),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#F8FAFC")),
+    ]
+    if header:
+        commands.extend([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#EEF4FF")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#1D4ED8")),
+        ])
+    return TableStyle(commands)
+
+
+def _p(value: Any, style: ParagraphStyle) -> Paragraph:
+    return Paragraph(_s(value), style)
 
 
 def _score(value) -> str:
@@ -369,4 +531,15 @@ def _s(value: Any) -> str:
     """段落文本安全化：转字符串并替换易破坏 reportlab 的尖括号。"""
     if value is None:
         return ""
-    return str(value).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    text = _clean_export_text(str(value))
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _clean_export_text(text: str) -> str:
+    """清理模型生成内容里常见的 Markdown 标记，避免 PDF 中露出格式噪声。"""
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    text = re.sub(r"^\s{0,3}#{1,6}\s*", "", text, flags=re.MULTILINE)
+    text = re.sub(r"\*\*(.*?)\*\*", r"\1", text)
+    text = re.sub(r"`([^`]*)`", r"\1", text)
+    text = re.sub(r"^\s*[-*]\s+", "- ", text, flags=re.MULTILINE)
+    return text.strip()

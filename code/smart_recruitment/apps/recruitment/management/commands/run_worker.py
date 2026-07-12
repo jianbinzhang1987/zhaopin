@@ -7,6 +7,7 @@ from django.db.utils import OperationalError
 from django.utils import timezone
 
 from apps.recruitment.models import AiJob, Evaluation
+from services.candidate_sync import sync_candidate_from_profile
 from services.analysis_workflow import build_analysis, generate_development_task, generate_regular_questions
 from services.llm_client import get_llm_client
 from services.resume_parser import extract_pdf_text, summarize_resume_text
@@ -46,6 +47,7 @@ def _reparse_resume(task, llm) -> None:
     resume.parse_error = "" if text else "未能从PDF中抽取文本，可能是扫描件。"
     resume.parsed_at = timezone.now()
     resume.save(update_fields=["resume_text", "parsed_profile", "parse_status", "parse_error", "parsed_at", "updated_at"])
+    sync_candidate_from_profile(task, resume.parsed_profile)
 
 
 class Command(BaseCommand):
@@ -120,12 +122,15 @@ class Command(BaseCommand):
                     resume.parse_error = "" if text else "未能从PDF中抽取文本，可能是扫描件。"
                     resume.parsed_at = timezone.now()
                     resume.save()
+                    sync_candidate_from_profile(task, resume.parsed_profile)
                     result = {"parse_status": resume.parse_status}
             elif job.job_type == "analyze_position_resume":
                 # 第2步确认已建好 TaskAnalysis；此处负责岗位+简历分析
                 # 若简历画像为空或上次解析失败兜底，先重抽简历，否则 build_analysis 拿不到结构化字段
                 if _profile_needs_reparse(task.resume):
                     _reparse_resume(task, self.llm)
+                elif task.resume:
+                    sync_candidate_from_profile(task, task.resume.parsed_profile)
                 analysis_payload = build_analysis(task, self.llm)
                 analysis = task.analysis
                 for field, value in analysis_payload.items():
