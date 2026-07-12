@@ -1,7 +1,9 @@
 import time
+from datetime import timedelta
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from django.db.utils import OperationalError
 from django.utils import timezone
 
 from apps.recruitment.models import AiJob, Evaluation
@@ -52,6 +54,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--once", action="store_true", help="只处理一个任务后退出")
         parser.add_argument("--sleep", type=float, default=2.0, help="没有任务时的等待秒数")
+        parser.add_argument("--stale-minutes", type=int, default=10, help="将运行超过指定分钟数的旧任务标记为失败")
 
     def handle(self, *args, **options):
         self.llm = get_llm_client()
@@ -60,6 +63,7 @@ class Command(BaseCommand):
         else:
             self.stdout.write("未配置 LLM_API_KEY，将使用本地兜底工作流。")
         while True:
+            self.recover_stale_jobs(options["stale_minutes"])
             job = self.claim_job()
             if not job:
                 if options["once"]:
@@ -81,6 +85,18 @@ class Command(BaseCommand):
         job.started_at = timezone.now()
         job.save(update_fields=["status", "progress", "started_at", "updated_at"])
         return job
+
+    def recover_stale_jobs(self, stale_minutes: int):
+        cutoff = timezone.now() - timedelta(minutes=stale_minutes)
+        stale_jobs = AiJob.objects.filter(status="running", started_at__lt=cutoff)
+        count = stale_jobs.update(
+            status="failed",
+            error_message=f"后台任务运行超过 {stale_minutes} 分钟，已自动标记为失败，请重新触发。",
+            finished_at=timezone.now(),
+            updated_at=timezone.now(),
+        )
+        if count:
+            self.stderr.write(self.style.WARNING(f"已恢复 {count} 个超时运行任务。"))
 
     def execute_job(self, job):
         try:
@@ -176,5 +192,8 @@ class Command(BaseCommand):
             job.status = "failed"
             job.error_message = str(exc)
             job.finished_at = timezone.now()
-            job.save(update_fields=["status", "error_message", "finished_at", "updated_at"])
+            try:
+                job.save(update_fields=["status", "error_message", "finished_at", "updated_at"])
+            except OperationalError as save_exc:
+                self.stderr.write(self.style.ERROR(f"任务失败且状态写回失败 {job.id}: {save_exc}"))
             self.stderr.write(self.style.ERROR(f"任务失败 {job.id}: {exc}"))

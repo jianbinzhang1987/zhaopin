@@ -191,6 +191,43 @@ def _shuffle_regular_questions(question_set) -> None:
     question_set.questions = [*basic, *qa]
 
 
+def _generate_initial_regular_questions(task, user):
+    question_set = generate_regular_questions(task, get_llm_client())
+    _shuffle_regular_questions(question_set)
+    question_set.status = "reviewing"
+    question_set.save(update_fields=["questions", "status", "updated_at"])
+    question_source = question_set.questions[0].get("_ai_source", "") if question_set.questions else ""
+    task.regular_question_status = "generated"
+    if task.overall_status in {"pending_analysis", "pending_verification_confirmation"}:
+        task.overall_status = "pending_question_review"
+    task.save(update_fields=["regular_question_status", "overall_status", "updated_at"])
+    log_event(
+        task,
+        user,
+        "regular_questions_generated",
+        "首次自动生成普通题并打乱题序",
+        {"question_set_id": question_set.id, "version": question_set.version, "source": question_source},
+    )
+    return question_set
+
+
+def _generate_initial_development_task(task, user, direction: str = ""):
+    dev_task = generate_development_task(task, get_llm_client(), direction=direction)
+    task.development_task_status = "reviewing"
+    if task.overall_status in {"pending_analysis", "pending_verification_confirmation"}:
+        task.overall_status = "pending_question_review"
+    task.save(update_fields=["development_task_status", "overall_status", "updated_at"])
+    dev_source = (dev_task.content.get("_ai") or {}).get("source", "")
+    log_event(
+        task,
+        user,
+        "development_task_generated",
+        "首次自动生成现场开发题",
+        {"development_task_id": dev_task.id, "version": dev_task.version, "source": dev_source},
+    )
+    return dev_task
+
+
 @login_required
 def task_list(request):
     tasks = RecruitmentTask.objects.select_related("candidate", "position", "department", "technical_owner").all()
@@ -259,17 +296,66 @@ def task_parsing_status(request, pk):
     """返回当前任务 parse_resume 后台任务的状态，供过渡页轮询。"""
     task = get_object_or_404(RecruitmentTask, pk=pk)
     if not task.resume:
-        return JsonResponse({"status": "skipped", "redirect": "candidate-confirm", "progress": 100})
+        return JsonResponse({
+            "status": "skipped",
+            "redirect": "candidate-confirm",
+            "progress": 100,
+            "message": "未上传简历，进入手动填写。",
+            "stage": "manual",
+        })
     job = task.ai_jobs.filter(job_type="parse_resume").order_by("-created_at").first()
     if not job:
-        return JsonResponse({"status": "queued", "progress": 0})
-    payload = {"status": job.status, "progress": job.progress}
+        return JsonResponse({
+            "status": "queued",
+            "progress": 0,
+            "message": "等待创建简历解析任务。",
+            "stage": "waiting_job",
+            "stale": True,
+        })
+
+    now = timezone.now()
+    elapsed_seconds = int((now - job.created_at).total_seconds())
+    queue_position = None
+    if job.status == "queued":
+        queue_position = AiJob.objects.filter(status="queued", created_at__lt=job.created_at).count() + 1
+    running_seconds = int((now - job.started_at).total_seconds()) if job.started_at else None
+    progress = job.progress
+    if job.status == "queued":
+        progress = max(progress, 5)
+    running_stale = job.status == "running" and running_seconds is not None and running_seconds >= 90
+    payload = {
+        "status": job.status,
+        "progress": progress,
+        "elapsed_seconds": elapsed_seconds,
+        "running_seconds": running_seconds,
+        "queue_position": queue_position,
+        "stale": (job.status == "queued" and elapsed_seconds >= 15) or running_stale,
+    }
+    if job.status == "queued":
+        payload["stage"] = "queued"
+        payload["message"] = f"等待后台 Worker 领取任务（队列位置：{queue_position}）。"
+    elif job.status == "running":
+        if job.progress < 30:
+            payload["stage"] = "claiming"
+            payload["message"] = "后台已领取任务，正在准备解析。"
+        elif job.progress < 60:
+            payload["stage"] = "extracting_pdf"
+            payload["message"] = "正在从 PDF 中抽取简历文本。"
+        else:
+            payload["stage"] = "structuring_resume"
+            payload["message"] = "正在使用大模型结构化候选人信息。"
+        if running_stale:
+            payload["message"] = "后台解析耗时偏长，可能正在等待模型接口或数据库写入；你可以继续等待，也可以先跳过手动填写。"
     if job.status == "success":
         payload["redirect"] = "candidate-confirm"
         payload["parse_status"] = task.resume.parse_status
+        payload["stage"] = "done"
+        payload["message"] = "解析完成，即将进入候选人信息确认。"
     elif job.status == "failed":
         payload["redirect"] = "candidate-confirm"
         payload["error"] = job.error_message or "解析失败"
+        payload["stage"] = "failed"
+        payload["message"] = payload["error"]
     return JsonResponse(payload)
 
 
@@ -484,6 +570,12 @@ def regular_questions_view(request, pk):
     task = get_object_or_404(RecruitmentTask, pk=pk)
     question_set = task.regular_question_sets.first()
     selected_index = _safe_int(request.GET.get("q"), default=0)
+    if request.method == "GET" and (not question_set or not question_set.questions):
+        if _status_allowed(task, *_QUESTION_REGENERATE_ALLOWED_STATUSES):
+            question_set = _generate_initial_regular_questions(task, request.user)
+            messages.info(request, f"已自动生成普通题：版本 v{question_set.version}，请审核确认。")
+        else:
+            messages.warning(request, "当前阶段尚不能生成普通题，请先完成前置流程。")
     if request.method == "POST":
         action = request.POST.get("action")
         if action == "regenerate_set":
@@ -499,7 +591,8 @@ def regular_questions_view(request, pk):
                 return redirect("regular-questions", pk=task.pk)
             question_set = generate_regular_questions(task, get_llm_client())
             _shuffle_regular_questions(question_set)
-            question_set.save(update_fields=["questions", "updated_at"])
+            question_set.status = "reviewing"
+            question_set.save(update_fields=["questions", "status", "updated_at"])
             question_source = question_set.questions[0].get("_ai_source", "") if question_set.questions else ""
             task.regular_question_status = "generated"
             task.overall_status = "pending_question_review"
@@ -551,7 +644,7 @@ def regular_questions_view(request, pk):
             question_set.status = "confirmed"
             question_set.save(update_fields=["status", "updated_at"])
         if not task.development_tasks.exists():
-            generate_development_task(task, get_llm_client())
+            _generate_initial_development_task(task, request.user)
         task.regular_question_status = "confirmed"
         task.overall_status = "pending_delivery"
         task.development_task_status = "reviewing"
@@ -569,6 +662,12 @@ def regular_questions_view(request, pk):
 def development_task_view(request, pk):
     task = get_object_or_404(RecruitmentTask, pk=pk)
     dev_task = task.development_tasks.order_by("-version").first()
+    if request.method == "GET" and not dev_task and task.development_task_status != "not_enabled":
+        if _status_allowed(task, *_QUESTION_REGENERATE_ALLOWED_STATUSES):
+            dev_task = _generate_initial_development_task(task, request.user)
+            messages.info(request, f"已自动生成现场开发题：版本 v{dev_task.version}，请审核交付。")
+        else:
+            messages.warning(request, "当前阶段尚不能生成现场开发题，请先完成前置流程。")
     if request.method == "POST":
         action = request.POST.get("action")
         if action == "regenerate":

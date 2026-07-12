@@ -21,7 +21,12 @@
     <h2>招聘评测任务列表</h2>
   </div>
   <nav class="tabs">
-    <a class="active">全部</a><a>待分析</a><a>待审核</a><a>候选人进行中</a><a>待评分</a><a>已完成</a>
+    <a class="active" data-tab="all">全部</a>
+    <a data-tab="pending_analysis">待分析</a>
+    <a data-tab="pending_review">待审核</a>
+    <a data-tab="candidate_in_progress">候选人进行中</a>
+    <a data-tab="pending_scoring">待评分</a>
+    <a data-tab="completed">已完成</a>
   </nav>
   <table class="data-table task-table">
     <thead>
@@ -40,11 +45,11 @@
     </thead>
     <tbody>
       {% for task in tasks %}
-        <tr>
+        <tr data-status="{{ task.overall_status }}">
           <td>{{ task.task_no }}</td>
-          <td>{{ task.position.name }}</td>
+          <td class="truncate" title="{{ task.position.name }}">{{ task.position.name }}</td>
           <td>{{ task.candidate.name }}</td>
-          <td>{{ task.department.name|default:"-" }}</td>
+          <td class="truncate" title="{{ task.department.name|default:'-' }}">{{ task.department.name|default:"-" }}</td>
           <td><span class="status amber">{{ task.get_overall_status_display }}</span></td>
           <td><span class="status blue-soft">{{ task.get_regular_question_status_display }}</span></td>
           <td><span class="status green-soft">{{ task.get_development_task_status_display }}</span></td>
@@ -56,10 +61,152 @@
           </td>
         </tr>
       {% empty %}
-        <tr><td colspan="10" class="empty">暂无招聘评测任务</td></tr>
+        <tr class="empty-row"><td colspan="10" class="empty">暂无招聘评测任务</td></tr>
       {% endfor %}
     </tbody>
   </table>
-  <div class="table-foot"><span>共 {{ tasks|length }} 条</span><span>10 条/页</span></div>
+  <div class="table-foot">
+    <span>共 {{ tasks|length }} 条</span>
+    <div class="pagination" id="table-pagination"></div>
+    <span>10 条/页</span>
+  </div>
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const tabs = document.querySelectorAll(".tabs a");
+  const tbody = document.querySelector(".task-table tbody");
+  const allRows = Array.from(tbody.querySelectorAll("tr:not(.empty-row)"));
+  const emptyRowTemplate = document.createElement("tr");
+  emptyRowTemplate.className = "empty-row";
+  emptyRowTemplate.innerHTML = '<td colspan="10" class="empty">该分类下暂无招聘评测任务</td>';
+
+  const tabMapping = {
+    'all': null,
+    'pending_analysis': ['draft', 'pending_analysis', 'pending_verification_confirmation'],
+    'pending_review': ['pending_question_review'],
+    'candidate_in_progress': ['pending_delivery', 'candidate_in_progress', 'pending_collection'],
+    'pending_scoring': ['pending_scoring', 'pending_report_confirmation'],
+    'completed': ['completed', 'cancelled']
+  };
+
+  const pageSize = 10;
+  let currentTab = 'all';
+  let currentPage = 1;
+
+  function updateTable() {
+    // 1. Filter rows by tab
+    const targetStatuses = tabMapping[currentTab];
+    const filteredRows = allRows.filter(row => {
+      const status = row.getAttribute("data-status");
+      return !targetStatuses || targetStatuses.includes(status);
+    });
+
+    // 2. Clear any existing empty rows
+    const existingEmpty = tbody.querySelector(".empty-row");
+    if (existingEmpty) {
+      existingEmpty.remove();
+    }
+
+    // 3. Handle empty state
+    if (filteredRows.length === 0) {
+      tbody.appendChild(emptyRowTemplate);
+      const countLabel = document.querySelector(".table-foot span:first-child");
+      if (countLabel) countLabel.textContent = "共 0 条";
+      const paginationContainer = document.getElementById("table-pagination");
+      if (paginationContainer) paginationContainer.innerHTML = "";
+      allRows.forEach(row => row.style.display = "none");
+      return;
+    }
+
+    // 4. Update count label
+    const countLabel = document.querySelector(".table-foot span:first-child");
+    if (countLabel) countLabel.textContent = `共 ${filteredRows.length} 条`;
+
+    // 5. Paginate
+    const totalPages = Math.ceil(filteredRows.length / pageSize);
+    if (currentPage > totalPages) {
+      currentPage = totalPages;
+    }
+    if (currentPage < 1) {
+      currentPage = 1;
+    }
+
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+
+    // Show/hide rows
+    allRows.forEach(row => {
+      row.style.display = "none";
+    });
+    filteredRows.forEach((row, index) => {
+      if (index >= startIndex && index < endIndex) {
+        row.style.display = "";
+      }
+    });
+
+    // Render pagination controls
+    const paginationContainer = document.getElementById("table-pagination");
+    if (paginationContainer) {
+      paginationContainer.innerHTML = "";
+
+      if (totalPages > 1) {
+        // Prev Button
+        const prevBtn = document.createElement("span");
+        prevBtn.className = `page-link ${currentPage === 1 ? 'disabled' : ''}`;
+        prevBtn.textContent = "‹ 上一页";
+        if (currentPage > 1) {
+          prevBtn.addEventListener("click", () => {
+            currentPage--;
+            updateTable();
+          });
+        }
+        paginationContainer.appendChild(prevBtn);
+
+        // Page numbers
+        for (let i = 1; i <= totalPages; i++) {
+          const pageBtn = document.createElement("span");
+          pageBtn.className = `page-link ${currentPage === i ? 'active' : ''}`;
+          pageBtn.textContent = i;
+          pageBtn.addEventListener("click", () => {
+            currentPage = i;
+            updateTable();
+          });
+          paginationContainer.appendChild(pageBtn);
+        }
+
+        // Next Button
+        const nextBtn = document.createElement("span");
+        nextBtn.className = `page-link ${currentPage === totalPages ? 'disabled' : ''}`;
+        nextBtn.textContent = "下一页 ›";
+        if (currentPage < totalPages) {
+          nextBtn.addEventListener("click", () => {
+            currentPage++;
+            updateTable();
+          });
+        }
+        paginationContainer.appendChild(nextBtn);
+      }
+    }
+  }
+
+  // Bind tab click events
+  tabs.forEach(tab => {
+    tab.addEventListener("click", function (e) {
+      e.preventDefault();
+      tabs.forEach(t => t.classList.remove("active"));
+      tab.classList.add("active");
+
+      currentTab = tab.getAttribute("data-tab");
+      currentPage = 1;
+      updateTable();
+    });
+  });
+
+  // Initial render
+  updateTable();
+})();
+</script>
 {% endblock %}

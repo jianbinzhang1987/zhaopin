@@ -262,7 +262,7 @@ class RecruitmentTask(TimeStampedModel):
     def next_action(self) -> str:
         mapping = {
             "draft": "完善候选人信息",
-            "pending_analysis": "等待分析",
+            "pending_analysis": "开始分析",
             "pending_verification_confirmation": "确认验证项",
             "pending_question_review": "审核题目",
             "pending_delivery": "交付题目",

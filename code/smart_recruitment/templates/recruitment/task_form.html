@@ -7,9 +7,13 @@
     <h1>新建招聘评测任务</h1>
     <p>选择岗位模板自动带入岗位字段、填写岗位要求并上传候选人简历（可选），提交后系统将解析简历并进入候选人信息确认。</p>
   </div>
+  <div class="button-group">
+    <a class="btn" href="{% url 'task-list' %}">取消</a>
+    <button class="btn primary" form="task-create-form" type="submit">提交并继续</button>
+  </div>
 </section>
 
-<form method="post" enctype="multipart/form-data">
+<form id="task-create-form" method="post" enctype="multipart/form-data">
   {% csrf_token %}
   <section class="form-grid">
     <article class="panel form-panel">
@@ -29,7 +33,23 @@
     <article class="panel form-panel">
       <h2><span class="section-icon">●</span>候选人简历（可选）</h2>
       <div class="field-grid">
-        <label class="wide"><span>上传PDF简历</span><div class="upload-box">{{ form.resume_file }}<strong>将PDF文件拖拽到此处，或点击上传</strong><small>支持PDF格式，文件大小不超过20MB；未上传可在下一步手动填写候选人信息</small></div></label>
+        <label class="wide">
+          <span>上传PDF简历</span>
+          <div class="upload-box" id="resume-upload-box">
+            {{ form.resume_file }}
+            <div class="upload-copy">
+              <strong id="resume-upload-title">将PDF文件拖拽到此处，或点击上传</strong>
+              <small id="resume-upload-hint">支持PDF格式，文件大小不超过20MB；未上传可在下一步手动填写候选人信息</small>
+            </div>
+            <div class="upload-file" id="resume-upload-file" hidden>
+              <b id="resume-file-name"></b>
+              <button type="button" id="resume-file-clear" aria-label="移除已选择的简历">移除</button>
+            </div>
+          </div>
+          {% if form.resume_file.errors %}
+            <span class="field-error">{{ form.resume_file.errors.0 }}</span>
+          {% endif %}
+        </label>
       </div>
       <input type="hidden" name="enable_development_task" value="{{ form.enable_development_task.value|default:'on' }}">
       <label class="checker"><input type="checkbox" name="enable_development_task" {% if form.enable_development_task.value %}checked{% endif %}> 启用现场开发题</label>
@@ -45,10 +65,6 @@
     <p>候选人信息将在下一步确认页面填写或核对，确认后再进入岗位与简历分析。</p>
   </section>
 
-  <section class="footer-actions">
-    <a class="btn" href="{% url 'task-list' %}">取消</a>
-    <button class="btn primary" type="submit">提交并继续</button>
-  </section>
 </form>
 {% endblock %}
 
@@ -79,6 +95,70 @@
     if (value === null || value === undefined) value = "";
     el.value = value;
   }
+})();
+
+(function () {
+  var input = document.getElementById("id_resume_file");
+  var box = document.getElementById("resume-upload-box");
+  var filePanel = document.getElementById("resume-upload-file");
+  var fileName = document.getElementById("resume-file-name");
+  var hint = document.getElementById("resume-upload-hint");
+  var clear = document.getElementById("resume-file-clear");
+  if (!input || !box || !filePanel || !fileName || !hint || !clear) return;
+
+  function showFile(file) {
+    if (!file) {
+      box.classList.remove("has-file", "has-error");
+      filePanel.hidden = true;
+      fileName.textContent = "";
+      hint.textContent = "支持PDF格式，文件大小不超过20MB；未上传可在下一步手动填写候选人信息";
+      return;
+    }
+    var maxSize = 20 * 1024 * 1024;
+    var isPdf = /\.pdf$/i.test(file.name || "") || file.type === "application/pdf";
+    box.classList.toggle("has-error", !isPdf || file.size > maxSize);
+    box.classList.add("has-file");
+    filePanel.hidden = false;
+    fileName.textContent = file.name;
+    if (!isPdf) {
+      hint.textContent = "请选择 PDF 格式文件";
+    } else if (file.size > maxSize) {
+      hint.textContent = "文件超过20MB，请重新选择";
+    } else {
+      hint.textContent = "已选择文件，提交后将进入简历解析";
+    }
+  }
+
+  input.addEventListener("change", function () {
+    showFile(input.files && input.files[0]);
+  });
+
+  ["dragenter", "dragover"].forEach(function (eventName) {
+    box.addEventListener(eventName, function (event) {
+      event.preventDefault();
+      box.classList.add("dragging");
+    });
+  });
+
+  box.addEventListener("dragleave", function (event) {
+    event.preventDefault();
+    box.classList.remove("dragging");
+  });
+
+  box.addEventListener("drop", function (event) {
+    event.preventDefault();
+    box.classList.remove("dragging");
+    if (event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length) {
+      input.files = event.dataTransfer.files;
+      showFile(input.files[0]);
+    }
+  });
+
+  clear.addEventListener("click", function (event) {
+    event.preventDefault();
+    input.value = "";
+    showFile(null);
+  });
 })();
 </script>
 {% endblock %}

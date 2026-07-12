@@ -15,7 +15,12 @@
     <h2 id="parse-title">简历解析中…</h2>
     <p class="muted">任务编号：{{ task.task_no }}</p>
     <div class="progress-bar"><div id="parse-progress" class="progress-fill initial"></div></div>
-    <p id="parse-status" class="muted small">排队中…</p>
+    <p id="parse-status" class="muted small">正在检查后台任务…</p>
+    <div class="parse-meta">
+      <span id="parse-stage">状态确认中</span>
+      <span id="parse-elapsed">等待 0 秒</span>
+    </div>
+    <p id="parse-warning" class="parse-warning" hidden>后台解析任务尚未被领取，请确认 worker 服务已启动；你也可以先跳过等待，直接填写候选人信息。</p>
     <a class="btn parse-skip" href="{% url 'candidate-confirm' task.pk %}">跳过等待，直接填写</a>
   </div>
 </section>
@@ -29,6 +34,9 @@
   var titleEl = document.getElementById("parse-title");
   var statusEl = document.getElementById("parse-status");
   var barEl = document.getElementById("parse-progress");
+  var stageEl = document.getElementById("parse-stage");
+  var elapsedEl = document.getElementById("parse-elapsed");
+  var warningEl = document.getElementById("parse-warning");
   var timer = null;
 
   function poll() {
@@ -41,25 +49,50 @@
   function handle(data) {
     var prog = data.progress || 0;
     barEl.style.width = prog + "%";
+    statusEl.textContent = data.message || "正在处理…";
+    stageEl.textContent = stageText(data);
+    elapsedEl.textContent = elapsedText(data);
+    warningEl.hidden = !data.stale;
     if (data.status === "queued") {
-      statusEl.textContent = "排队中…";
+      titleEl.textContent = data.stale ? "等待后台服务领取任务" : "等待后台解析任务…";
     } else if (data.status === "running") {
-      statusEl.textContent = "正在解析简历…";
       titleEl.textContent = "简历解析中…";
     } else if (data.status === "success") {
-      statusEl.textContent = "解析完成，即将跳转…";
       titleEl.textContent = "解析完成";
       barEl.style.width = "100%";
       return jump();
     } else if (data.status === "failed") {
       statusEl.textContent = "解析失败（" + (data.error || "未知错误") + "），将进入手动填写。";
       titleEl.textContent = "解析失败";
-      return jump();
+      return jump(2500);
     } else if (data.status === "skipped") {
-      statusEl.textContent = "未上传简历，进入手动填写。";
       return jump();
     }
     schedule(1500);
+  }
+
+  function stageText(data) {
+    var labels = {
+      waiting_job: "等待任务创建",
+      queued: data.queue_position ? "排队中 · 第 " + data.queue_position + " 位" : "排队中",
+      claiming: "后台已领取",
+      extracting_pdf: "抽取 PDF 文本",
+      structuring_resume: "结构化简历信息",
+      done: "解析完成",
+      failed: "解析失败",
+      manual: "手动填写"
+    };
+    return labels[data.stage] || "处理中";
+  }
+
+  function elapsedText(data) {
+    if (data.status === "running" && data.running_seconds !== null && data.running_seconds !== undefined) {
+      return "解析 " + data.running_seconds + " 秒";
+    }
+    if (data.elapsed_seconds !== null && data.elapsed_seconds !== undefined) {
+      return "等待 " + data.elapsed_seconds + " 秒";
+    }
+    return "等待 0 秒";
   }
 
   function schedule(ms) {
@@ -67,9 +100,9 @@
     timer = setTimeout(function () { timer = null; poll(); }, ms);
   }
 
-  function jump() {
+  function jump(delay) {
     if (timer) { clearTimeout(timer); timer = null; }
-    setTimeout(function () { window.location.href = redirectUrl; }, 500);
+    setTimeout(function () { window.location.href = redirectUrl; }, delay || 500);
   }
 
   poll();

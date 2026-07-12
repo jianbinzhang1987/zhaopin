@@ -10,6 +10,7 @@
   </div>
   <div class="button-group">
     <a class="btn" href="{% url 'regular-questions' task.pk %}">‹ 返回普通题审核</a>
+    <button class="btn" type="button" id="open-regenerate-modal-btn">↻ 重新生成题目</button>
     {% if dev_task.status == "sent" or task.development_task_status == "sent" %}
       <span class="status green-soft">已发送</span>
     {% else %}
@@ -32,33 +33,18 @@
     <p><span>是否允许使用大模型：</span><strong>{% if dev_task.content.constraints.allow_llm == False %}不允许{% else %}允许{% endif %}</strong></p>
     <p><span>是否允许联网：</span><strong>{% if dev_task.content.constraints.allow_internet == False %}不允许{% else %}允许{% endif %}</strong></p>
     <p><span>提交方式：</span><strong>{{ dev_task.content.deliverables|as_list|join:" + "|default:"压缩包 + README" }}</strong></p>
-    <div class="info-note">独立交付，不与普通题目混合导出</div>
-    <form method="post" class="dev-regenerate-form js-wait-form" data-wait-text="正在按方向重新生成现场开发题，请稍候...">
-      {% csrf_token %}
-      <label>
-        <span>调整方向</span>
-        <select name="direction">
-          <option value="">自动选择方向</option>
-          <option value="RAG智能问答" {% if dev_task.content.direction == "RAG智能问答" %}selected{% endif %}>RAG智能问答</option>
-          <option value="Agent工具调用" {% if dev_task.content.direction == "Agent工具调用" %}selected{% endif %}>Agent工具调用</option>
-          <option value="AI工程平台" {% if dev_task.content.direction == "AI工程平台" %}selected{% endif %}>AI工程平台</option>
-          <option value="模型评估与优化" {% if dev_task.content.direction == "模型评估与优化" %}selected{% endif %}>模型评估与优化</option>
-        </select>
-      </label>
-      <input name="direction_custom" placeholder="自定义方向，例如：RAG评估体系">
-      <button class="btn" name="action" value="regenerate" type="submit">↻ 重新生成题目</button>
-    </form>
+    <div class="info-note" style="margin-bottom: 0;">独立交付，不与普通题目混合导出</div>
   </article>
 
   <article class="panel dev-description">
     <h2>题目说明</h2>
-    <section><h3>业务背景</h3><p>{{ dev_task.content.background|default:"暂无业务背景，请先重新生成现场开发题。" }}</p></section>
+    <section><h3>业务背景</h3><p>{{ dev_task.content.background|default:"系统会自动生成现场开发题；如长时间未出现，请刷新或检查后台 Worker。" }}</p></section>
     <section><h3>任务要求</h3>
       <ul class="blue-list">
         {% for item in dev_task.content.requirements|as_list %}
           <li>{{ item }}</li>
         {% empty %}
-          <li>暂无任务要求。</li>
+          <li>系统会自动生成任务要求。</li>
         {% endfor %}
       </ul>
     </section>
@@ -76,7 +62,7 @@
         {% for item in dev_task.content.deliverables|as_list %}
           <li>{{ item }}</li>
         {% empty %}
-          <li>暂无交付内容。</li>
+          <li>系统会自动生成交付内容。</li>
         {% endfor %}
       </ul>
     </section>
@@ -85,7 +71,7 @@
         {% for item in dev_task.content.acceptance_criteria|as_list %}
           <li>{{ item }}</li>
         {% empty %}
-          <li>暂无验收标准。</li>
+          <li>系统会自动生成验收标准。</li>
         {% endfor %}
       </ul>
     </section>
@@ -104,20 +90,62 @@
       <dt>回收状态</dt><dd>{% if dev_task.collected_at %}已回收{% else %}未回收{% endif %}</dd>
       <dt>评审安排</dt><dd>{% if task.overall_status == "pending_scoring" %}待评分{% elif task.overall_status == "completed" %}已完成{% else %}待安排{% endif %}</dd>
     </dl>
-    <div class="button-group full">
+    <div class="export-box" style="margin-top: 14px; border-top: 1px dashed #edf0f5; padding-top: 14px;">
+      <h3 style="font-size: 14px; margin-bottom: 8px; font-weight: 700; color: #344054;">下载题目包</h3>
       {% if dev_task %}
-        <a class="btn primary" href="{% url 'export-development' task.pk 'docx' %}">下载题目包 Word</a>
-        <a class="btn" href="{% url 'export-development' task.pk 'pdf' %}">下载题目包 PDF</a>
+        <p style="margin: 0 0 6px;">
+          <a class="file-chip" href="{% url 'export-development' task.pk 'docx' %}">Word</a>
+          <a class="file-chip pdf" href="{% url 'export-development' task.pk 'pdf' %}">PDF</a>
+        </p>
+        <small style="color: var(--muted); font-size: 13px;">独立交付，线下开发</small>
       {% else %}
-        <span class="btn" aria-disabled="true">下载题目包 Word</span>
-        <span class="btn" aria-disabled="true">下载题目包 PDF</span>
+        <p style="margin: 0 0 6px;">
+          <span class="file-chip" style="opacity: 0.5; cursor: not-allowed;">Word</span>
+          <span class="file-chip pdf" style="opacity: 0.5; cursor: not-allowed;">PDF</span>
+        </p>
+        <small style="color: var(--muted); font-size: 13px;">系统会自动生成现场开发题</small>
       {% endif %}
     </div>
   </article>
 </section>
 <div id="page-wait-mask" class="page-wait-mask" hidden><div><strong>处理中</strong><p>请稍候...</p></div></div>
+
+<!-- 重新生成题目弹窗 (Modal) -->
+<div id="regenerate-modal" class="modal-overlay" hidden>
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>重新生成现场开发题</h3>
+      <button type="button" class="modal-close-btn" id="close-modal-btn">&times;</button>
+    </div>
+    <form method="post" class="js-wait-form" data-wait-text="正在按方向重新生成现场开发题，请稍候...">
+      {% csrf_token %}
+      <div class="modal-body" style="display: grid; gap: 14px;">
+        <label>
+          <span>调整出题方向</span>
+          <select name="direction">
+            <option value="">自动选择方向</option>
+            <option value="RAG智能问答" {% if dev_task.content.direction == "RAG智能问答" %}selected{% endif %}>RAG智能问答</option>
+            <option value="Agent工具调用" {% if dev_task.content.direction == "Agent工具调用" %}selected{% endif %}>Agent工具调用</option>
+            <option value="AI工程平台" {% if dev_task.content.direction == "AI工程平台" %}selected{% endif %}>AI工程平台</option>
+            <option value="模型评估与优化" {% if dev_task.content.direction == "模型评估与优化" %}selected{% endif %}>模型评估与优化</option>
+          </select>
+        </label>
+        <label>
+          <span>自定义方向（可选）</span>
+          <input name="direction_custom" placeholder="例如：RAG评估体系" value="{{ dev_task.content.direction_custom|default:'' }}">
+        </label>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" id="cancel-modal-btn">取消</button>
+        <button type="submit" class="btn primary" name="action" value="regenerate">确认生成</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
   (() => {
+    // 1. Wait overlay mask listener
     document.querySelectorAll(".js-wait-form").forEach((form) => {
       form.addEventListener("submit", () => {
         const mask = document.getElementById("page-wait-mask");
@@ -125,17 +153,42 @@
           mask.hidden = false;
           mask.querySelector("p").textContent = form.dataset.waitText || "正在处理，请稍候...";
         }
-        // 注意：不能在 submit 事件里同步禁用触发的提交按钮，
-        // 部分 Chromium 内核会因此取消表单提交，导致页面不刷新。
-        // 用 setTimeout 延迟到下一个事件循环再禁用，保证提交先发出。
         setTimeout(() => {
           form.querySelectorAll("button").forEach((button) => {
             button.disabled = true;
-            button.textContent = "处理中...";
+            if (button.tagName === "BUTTON") {
+              button.textContent = "处理中...";
+            }
           });
         }, 0);
       });
     });
+
+    // 2. Modal open/close listeners
+    const modal = document.getElementById("regenerate-modal");
+    const openBtn = document.getElementById("open-regenerate-modal-btn");
+    const closeBtn = document.getElementById("close-modal-btn");
+    const cancelBtn = document.getElementById("cancel-modal-btn");
+
+    if (openBtn && modal) {
+      openBtn.addEventListener("click", () => {
+        modal.hidden = false;
+      });
+    }
+
+    const hideModal = () => {
+      if (modal) modal.hidden = true;
+    };
+
+    if (closeBtn) closeBtn.addEventListener("click", hideModal);
+    if (cancelBtn) cancelBtn.addEventListener("click", hideModal);
+    if (modal) {
+      modal.addEventListener("click", (e) => {
+        if (e.target === modal) {
+          hideModal();
+        }
+      });
+    }
   })();
 </script>
 {% endblock %}

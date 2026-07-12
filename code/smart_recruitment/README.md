@@ -11,8 +11,10 @@ source .venv/bin/activate
 pip install -r requirements.txt
 python manage.py migrate
 python manage.py seed_demo
-python manage.py runserver 127.0.0.1:8000
+./dev.sh
 ```
+
+`./dev.sh` 会同时启动 Django server 和后台 worker。简历解析、题目生成、AI评分、报告草稿都依赖 worker；如果只运行 `python manage.py runserver`，页面可以打开，但后台任务会一直停留在排队状态。
 
 演示账号：
 
@@ -38,7 +40,7 @@ python manage.py runserver 127.0.0.1:8000
 export LLM_API_KEY="你的API Key"
 export LLM_MODEL="gpt-4.1-mini"
 export LLM_BASE_URL="https://api.openai.com/v1"
-python manage.py run_worker
+./dev.sh worker
 ```
 
 也可以把 `LLM_BASE_URL` 指向私有模型网关，只要它兼容 OpenAI Chat Completions 响应格式。
@@ -57,6 +59,11 @@ python manage.py run_worker
 ## 常用命令
 
 ```bash
+./dev.sh            # 启动 server + worker（推荐）
+./dev.sh status     # 查看 server/worker 状态
+./dev.sh logs worker
+./dev.sh worker-fg  # 前台运行 worker，适合调试或在 Codex 中保持会话
+./dev.sh server-fg  # 前台运行 server，查看热重载日志
 python manage.py run_worker          # 常驻轮询后台任务
 python manage.py run_worker --once   # 只处理一个任务后退出
 ```

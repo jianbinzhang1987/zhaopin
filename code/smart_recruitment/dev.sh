@@ -3,9 +3,12 @@
 # 智能招聘评测系统 —— 本地开发脚本
 #
 # 用法:
-#   ./dev.sh server     启动 Django 开发服务器 (默认 127.0.0.1:8000)
+#   ./dev.sh            启动完整本地服务 (server + worker，推荐)
+#   ./dev.sh both       启动完整本地服务 (server + worker，推荐)
+#   ./dev.sh server     只启动 Django 开发服务器 (不会处理简历解析/题目生成队列)
 #   ./dev.sh worker     启动后台 Worker (轮询 AiJob 队列，处理异步任务)
-#   ./dev.sh both       同时启动 server 和 worker (后台运行 worker，前台 server)
+#   ./dev.sh worker-fg  前台运行 Worker (调试/在 Codex 中保持会话)
+#   ./dev.sh server-fg  前台运行 Django server (调试/查看热重载日志)
 #   ./dev.sh migrate    执行数据库迁移
 #   ./dev.sh makemigrations  生成迁移文件
 #   ./dev.sh createsuperuser 创建管理员账户
@@ -16,8 +19,8 @@
 #   ./dev.sh logs server|worker  查看指定服务日志
 #   ./dev.sh tail workers  打开 (仅查) worker.log 末尾
 #
-# 可自定义端口: PORT=9000 ./dev.sh server
-# 可自定义 host: HOST=0.0.0.0 ./dev.sh server
+# 可自定义端口: PORT=9000 ./dev.sh
+# 可自定义 host: HOST=0.0.0.0 ./dev.sh
 #
 set -euo pipefail
 
@@ -48,6 +51,7 @@ c_yellow(){ printf "\033[33m%s\033[0m\n" "$*"; }
 c_blue()  { printf "\033[36m%s\033[0m\n" "$*"; }
 
 is_running() { [ -f "$1" ] && kill -0 "$(cat "$1")" 2>/dev/null; }
+find_worker_pid() { pgrep -f "manage.py run_worker" 2>/dev/null | head -1 || true; }
 
 status_line() {
   local name="$1" pidfile="$2" logfile="$3"
@@ -99,7 +103,7 @@ cmd_server() {
   cmd_check_env
   if is_running "$SERVER_PID"; then
     c_yellow "服务器已在运行 (pid $(cat "$SERVER_PID"))，先停止再启动或刷新页面试试。"
-    exit 0
+    return 0
   fi
   rm -f "$SERVER_PID"
   c_blue "启动 Django 开发服务器: http://${HOST}:${PORT}  (日志: $SERVER_LOG)"
@@ -110,6 +114,7 @@ cmd_server() {
   if is_running "$SERVER_PID"; then
     c_green "服务器已启动 (pid $(cat "$SERVER_PID"))"
     c_blue "  访问: http://${HOST}:${PORT}/"
+    c_blue "  提示: 简历解析、题目生成、AI评分依赖 worker；本地开发建议使用 ./dev.sh 或 ./dev.sh both。"
   else
     c_red "服务器启动失败，查看日志: $SERVER_LOG"
     tail -30 "$SERVER_LOG" || true
@@ -117,14 +122,27 @@ cmd_server() {
   fi
 }
 
+cmd_server_foreground() {
+  cmd_check_env
+  c_blue "前台启动 Django 开发服务器: http://${HOST}:${PORT}  (Ctrl+C 停止)"
+  exec "$PY" manage.py runserver "${HOST}:${PORT}"
+}
+
 cmd_worker() {
   cmd_check_env
   if is_running "$WORKER_PID"; then
     c_yellow "Worker 已在运行 (pid $(cat "$WORKER_PID"))。"
-    exit 0
+    return 0
+  fi
+  local unmanaged_pid
+  unmanaged_pid="$(find_worker_pid)"
+  if [ -n "$unmanaged_pid" ]; then
+    echo "$unmanaged_pid" > "$WORKER_PID"
+    c_yellow "检测到已有 Worker 运行 (pid $unmanaged_pid)，已接管 pid 文件。"
+    return 0
   fi
   rm -f "$WORKER_PID"
-  c_blue "启动后台 Worker (轮询 AiJob 队列，日志: $WORKER_LOG)"
+  c_blue "启动后台 Worker (处理简历解析/题目生成/评分报告队列，日志: $WORKER_LOG)"
   nohup "$PY" manage.py run_worker --sleep 2 >"$WORKER_LOG" 2>&1 &
   echo $! > "$WORKER_PID"
   sleep 1
@@ -137,9 +155,18 @@ cmd_worker() {
   fi
 }
 
+cmd_worker_foreground() {
+  cmd_check_env
+  c_blue "前台启动后台 Worker (Ctrl+C 停止)"
+  exec "$PY" manage.py run_worker --sleep 2
+}
+
 cmd_both() {
+  c_blue "启动完整本地服务: server + worker"
   cmd_worker
   cmd_server
+  echo
+  cmd_status
 }
 
 cmd_stop() {
@@ -150,7 +177,21 @@ cmd_stop() {
 cmd_status() {
   c_blue "本地服务状态:"
   status_line "server" "$SERVER_PID" "$SERVER_LOG"
-  status_line "worker" "$WORKER_PID" "$WORKER_LOG"
+  if is_running "$WORKER_PID"; then
+    c_green "  ● worker: 运行中 (pid $(cat "$WORKER_PID"))  log: $WORKER_LOG"
+  else
+    local unmanaged_pid
+    unmanaged_pid="$(find_worker_pid)"
+    if [ -n "$unmanaged_pid" ]; then
+      c_yellow "  ● worker: 运行中 (pid ${unmanaged_pid}，未由 pid 文件托管)  log: $WORKER_LOG"
+    elif [ -f "$WORKER_PID" ]; then
+      c_yellow "  ○ worker: 已停止 (pid 文件残留: $(cat "$WORKER_PID"))"
+      c_yellow "  提醒: worker 未启动时，简历解析页面会停留在排队中。运行 ./dev.sh worker 或 ./dev.sh both。"
+    else
+      c_red "  ○ worker: 未启动"
+      c_yellow "  提醒: worker 未启动时，简历解析页面会停留在排队中。运行 ./dev.sh worker 或 ./dev.sh both。"
+    fi
+  fi
   echo
   c_blue "端口监听:"
   (lsof -nP -iTCP:"${PORT}" -sTCP:LISTEN 2>/dev/null || c_yellow "  端口 ${PORT} 无监听") | head -5
@@ -216,10 +257,12 @@ cmd_tail_worker() {
 }
 
 # ---------------- 入口 ----------------
-sub="${1:-help}"
+sub="${1:-both}"
 case "$sub" in
   server)    shift || true; cmd_server "$@" ;;
+  server-fg|server-foreground) shift || true; cmd_server_foreground "$@" ;;
   worker)    shift || true; cmd_worker "$@" ;;
+  worker-fg|worker-foreground) shift || true; cmd_worker_foreground "$@" ;;
   both)      shift || true; cmd_both "$@" ;;
   stop)      cmd_stop ;;
   status)     cmd_status ;;

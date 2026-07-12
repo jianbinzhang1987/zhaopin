@@ -18,7 +18,7 @@
       {% for template in templates %}
         <a class="template-list-item {% if selected and selected.pk == template.pk %}active{% endif %}" href="{% url 'position-template-detail' template.pk %}{% if query %}?q={{ query|urlencode }}{% endif %}">
           <span>{{ template.name }}</span>
-          <em class="{% if template.status == 'published' %}published{% elif template.status == 'disabled' %}draft{% else %}draft{% endif %}">{{ template.get_status_display }}</em>
+          <em class="{% if template.status == 'published' %}published{% elif template.status == 'disabled' %}disabled{% else %}draft{% endif %}">{{ template.get_status_display }}</em>
         </a>
       {% empty %}
         <p class="empty">暂无岗位模板</p>
@@ -60,15 +60,14 @@
 
       <form method="post" enctype="multipart/form-data" class="template-upload-form">
         {% csrf_token %}
-        <div>
+        <div class="upload-info">
           <strong>导入岗位文档</strong>
           <span>支持 Word / Excel，解析后自动填充当前模板字段</span>
         </div>
-        <label>
-          <span>选择文件</span>
+        <div class="upload-action-group">
           <input type="file" name="template_file" accept=".docx,.xlsx">
-        </label>
-        <button class="btn" name="action" value="upload_parse">解析并填充</button>
+          <button class="btn primary" name="action" value="upload_parse">解析并填充</button>
+        </div>
       </form>
 
       <form id="template-edit-form" method="post" class="template-form">

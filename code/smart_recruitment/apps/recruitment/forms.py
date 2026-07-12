@@ -11,7 +11,11 @@ class TaskCreateForm(forms.Form):
     department_name = forms.CharField(label="用人部门", max_length=128)
     job_level = forms.ChoiceField(label="岗位级别", choices=Position.LEVEL_CHOICES)
     raw_job_description = forms.CharField(label="岗位要求", widget=forms.Textarea(attrs={"rows": 8}))
-    resume_file = forms.FileField(label="PDF简历", required=False)
+    resume_file = forms.FileField(
+        label="PDF简历",
+        required=False,
+        widget=forms.FileInput(attrs={"accept": "application/pdf,.pdf"}),
+    )
     technical_owner = forms.ModelChoiceField(label="技术审核人", queryset=get_user_model().objects.none())
     planned_finish_at = forms.DateTimeField(
         label="计划完成时间",
@@ -26,6 +30,19 @@ class TaskCreateForm(forms.Form):
         self.fields["technical_owner"].queryset = get_user_model().objects.filter(is_active=True).order_by("username")
         self.fields["position_template"].queryset = PositionTemplate.objects.filter(status="published").select_related("department").order_by("name")
         self.fields["position_template"].widget.attrs.update({"id": "id_position_template", "data-url-suffix": ""})
+
+    def clean_resume_file(self):
+        resume_file = self.cleaned_data.get("resume_file")
+        if not resume_file:
+            return resume_file
+        max_size = 20 * 1024 * 1024
+        filename = (resume_file.name or "").lower()
+        content_type = getattr(resume_file, "content_type", "") or ""
+        if not filename.endswith(".pdf") and content_type != "application/pdf":
+            raise forms.ValidationError("请上传 PDF 格式的简历文件。")
+        if getattr(resume_file, "size", 0) > max_size:
+            raise forms.ValidationError("简历文件不能超过 20MB。")
+        return resume_file
 
     def save(self, user):
         department_name = self.cleaned_data["department_name"].strip()
@@ -132,8 +149,16 @@ class CandidateConfirmForm(forms.Form):
 class PositionTemplateForm(forms.ModelForm):
     responsibilities_text = forms.CharField(label="岗位职责", required=False, widget=forms.Textarea(attrs={"rows": 5}))
     requirements_text = forms.CharField(label="任职要求", required=False, widget=forms.Textarea(attrs={"rows": 5}))
-    technical_tags_text = forms.CharField(label="技术方向", required=False)
-    keywords_text = forms.CharField(label="岗位关键词", required=False)
+    technical_tags_text = forms.CharField(
+        label="技术方向",
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 2, "placeholder": "输入技术方向标签，以顿号（、）或逗号（，）分隔"}),
+    )
+    keywords_text = forms.CharField(
+        label="岗位关键词",
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 2, "placeholder": "输入岗位关键词标签，以顿号（、）或逗号（，）分隔"}),
+    )
 
     class Meta:
         model = PositionTemplate
