@@ -227,16 +227,16 @@ cmd_resetdb() {
   cmd_stop >/dev/null 2>&1 || true
   rm -rf "${DATA_DIR}/app.sqlite3"
   cmd_migrate
-  c_blue "重建默认 admin 账户 (admin / admin)..."
-  DJANGO_SUPERUSER_PASSWORD=admin "$PY" -c "
+  c_blue "重建默认 admin 账户 (admin / admin123)..."
+  DJANGO_SUPERUSER_PASSWORD=admin123 "$PY" -c "
 import os,django; os.environ.setdefault('DJANGO_SETTINGS_MODULE','config.settings'); django.setup()
 from django.contrib.auth import get_user_model
 U=get_user_model()
 U.objects.filter(username='admin').delete()
-U.objects.create_superuser('admin','','admin')
+U.objects.create_superuser('admin','','admin123')
 print('admin 创建完成')
 "
-  c_green "数据库已重建。账户: admin / admin  访问: http://${HOST}:${PORT}/"
+  c_green "数据库已重建。账户: admin / admin123  访问: http://${HOST}:${PORT}/"
 }
 
 cmd_logs() {

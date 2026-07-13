@@ -23,6 +23,7 @@ from reportlab.pdfbase.cidfonts import UnicodeCIDFont
 from reportlab.platypus import HRFlowable, KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from docx import Document
+from django.utils import timezone
 
 from apps.recruitment.models import DevelopmentTask, RecruitmentTask
 
@@ -51,10 +52,37 @@ _FORBIDDEN_CHARS = re.compile(r'[\\/:*?"<>|\r\n\t]+')
 
 
 def _safe_filename(text: str, suffix: str) -> str:
-    """生成服务化的文件名，去除文件系统非法字符。"""
-    cleaned = _FORBIDDEN_CHARS.sub("_", text).strip("_") or "export"
-    cleaned = cleaned[:60]
+    """生成适合下载和本地保存的文件名，去除文件系统非法字符。"""
+    cleaned = _FORBIDDEN_CHARS.sub("_", text).strip("_. ") or "export"
+    cleaned = cleaned[:120]
     return f"{cleaned}.{suffix}"
+
+
+def _export_version(task: RecruitmentTask, kind: str) -> int:
+    """返回当前导出内容的业务版本号。"""
+    if kind == "regular":
+        question_set = task.regular_question_sets.order_by("-version").first()
+        return question_set.version if question_set else 1
+    if kind == "development":
+        development_task = task.development_tasks.order_by("-version").first()
+        return development_task.version if development_task else 1
+    # 评测报告目前没有独立版本表，统一从 v1 开始。
+    return 1
+
+
+def _export_type_label(kind: str, with_answers: bool = True) -> str:
+    if kind == "regular":
+        return "普通题用人部门版" if with_answers else "普通题候选人版"
+    return {"development": "现场开发题", "report": "评测报告"}[kind]
+
+
+def _export_filename(task: RecruitmentTask, kind: str, suffix: str, with_answers: bool = True) -> str:
+    """按“题目类型-候选人-YYYYMMDD-v版本”生成统一下载文件名。"""
+    type_label = _export_type_label(kind, with_answers)
+    candidate_name = (task.candidate.name or "候选人").strip() or "候选人"
+    export_date = timezone.localdate().strftime("%Y%m%d")
+    version = _export_version(task, kind)
+    return _safe_filename(f"{type_label}-{candidate_name}-{export_date}-v{version}", suffix)
 
 
 def _title_for(task: RecruitmentTask, kind: str, with_answers: bool) -> str:
@@ -100,7 +128,7 @@ def build_regular_questions_docx(task: RecruitmentTask, with_answers: bool = Tru
     questions = _questions_for_export(task)
     if not questions:
         doc.add_paragraph("暂无题目。")
-        return _safe_filename(task.task_no or "regular", "docx"), _docx_bytes(doc)
+        return _export_filename(task, "regular", "docx", with_answers), _docx_bytes(doc)
     for idx, q in enumerate(questions, 1):
         doc.add_heading(f"{idx}. [{q.get('skill', '-')}] {q.get('content', '-')}", level=2)
         meta = f"题型 {q.get('type', '-')} · 难度 {q.get('difficulty', '-')}"
@@ -115,7 +143,7 @@ def build_regular_questions_docx(task: RecruitmentTask, with_answers: bool = Tru
                 doc.add_paragraph("评分要点：")
                 for p in points:
                     doc.add_paragraph(p, style="List Bullet")
-    filename = _safe_filename(task.task_no or "regular", "docx")
+    filename = _export_filename(task, "regular", "docx", with_answers)
     return filename, _docx_bytes(doc)
 
 
@@ -127,14 +155,14 @@ def build_development_task_docx(task: RecruitmentTask) -> tuple[str, bytes]:
     content = (dev.content if dev else {}) or {}
     if not content:
         doc.add_paragraph("暂无现场开发题内容。")
-        return _safe_filename(task.task_no or "development", "docx"), _docx_bytes(doc)
+        return _export_filename(task, "development", "docx"), _docx_bytes(doc)
     _section_paragraph(doc, "业务背景", content.get("background"))
     _section_list(doc, "任务要求", content.get("requirements"))
     _section_paragraph(doc, "开发时长", content.get("duration"))
     _section_dict_list(doc, "约束条件", content.get("constraints"))
     _section_list(doc, "交付内容", content.get("deliverables"))
     _section_list(doc, "验收标准", content.get("acceptance_criteria"))
-    filename = _safe_filename(task.task_no or "development", "docx")
+    filename = _export_filename(task, "development", "docx")
     return filename, _docx_bytes(doc)
 
 
@@ -145,7 +173,7 @@ def build_report_docx(task: RecruitmentTask) -> tuple[str, bytes]:
     ev = getattr(task, "evaluation", None)
     if not ev:
         doc.add_paragraph("暂无评测报告数据。")
-        return _safe_filename(task.task_no or "report", "docx"), _docx_bytes(doc)
+        return _export_filename(task, "report", "docx"), _docx_bytes(doc)
     # 评分卡片
     table = doc.add_table(rows=4, cols=2)
     table.style = "Light Grid Accent 1"
@@ -177,7 +205,7 @@ def build_report_docx(task: RecruitmentTask) -> tuple[str, bytes]:
         for line in ev.report_markdown.splitlines():
             if line.strip():
                 doc.add_paragraph(line)
-    filename = _safe_filename(task.task_no or "report", "docx")
+    filename = _export_filename(task, "report", "docx")
     return filename, _docx_bytes(doc)
 
 
@@ -348,7 +376,7 @@ def build_regular_questions_pdf(task: RecruitmentTask, with_answers: bool = True
     for idx, q in enumerate(questions, 1):
         _pdf_question(story, styles, idx, q, with_answers)
     _build_pdf(doc, story, styles)
-    return _safe_filename(task.task_no or "regular", "pdf"), buf.getvalue()
+    return _export_filename(task, "regular", "pdf", with_answers), buf.getvalue()
 
 
 def build_development_task_pdf(task: RecruitmentTask) -> tuple[str, bytes]:
@@ -374,7 +402,7 @@ def build_development_task_pdf(task: RecruitmentTask) -> tuple[str, bytes]:
         _pdf_list(story, styles, "交付内容", content.get("deliverables"))
         _pdf_list(story, styles, "验收标准", content.get("acceptance_criteria"))
     _build_pdf(doc, story, styles)
-    return _safe_filename(task.task_no or "development", "pdf"), buf.getvalue()
+    return _export_filename(task, "development", "pdf"), buf.getvalue()
 
 
 def build_report_pdf(task: RecruitmentTask) -> tuple[str, bytes]:
@@ -386,7 +414,7 @@ def build_report_pdf(task: RecruitmentTask) -> tuple[str, bytes]:
     if not ev:
         story.append(Paragraph("暂无评测报告数据。", styles["normal"]))
         _build_pdf(doc, story, styles)
-        return _safe_filename(task.task_no or "report", "pdf"), buf.getvalue()
+        return _export_filename(task, "report", "pdf"), buf.getvalue()
     score_table = _pdf_kv_table(
         [
             ["普通题得分", _score(ev.regular_score)],
@@ -414,7 +442,7 @@ def build_report_pdf(task: RecruitmentTask) -> tuple[str, bytes]:
     if ev.report_markdown:
         _pdf_section(story, styles, "报告正文", ev.report_markdown)
     _build_pdf(doc, story, styles)
-    return _safe_filename(task.task_no or "report", "pdf"), buf.getvalue()
+    return _export_filename(task, "report", "pdf"), buf.getvalue()
 
 
 def _pdf_meta_block(task: RecruitmentTask, styles, kind: str = "regular", with_answers: bool = True) -> list:

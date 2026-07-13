@@ -19,7 +19,7 @@ python manage.py seed_demo
 演示账号：
 
 - 用户名：`admin`
-- 密码：`admin123456`
+- 密码：`admin123`
 
 ## 已实现页面
 

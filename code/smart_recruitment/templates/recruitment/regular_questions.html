@@ -6,19 +6,29 @@
 <section class="title-row">
   <div>
     <h1>{{ task.position.name }} / {{ task.candidate.name }} / 普通题目审核</h1>
-    <p>题目类型：基础技能验证 + 问答题　题目数量：{{ questions|length }}题　当前状态：<span class="status amber">{{ question_set.get_status_display|default:"待生成" }}</span>　版本：v{{ question_set.version|default:"-" }}　更新时间：{{ question_set.updated_at|date:"Y-m-d H:i:s"|default:"-" }}　建议时长：{{ question_set.duration_minutes|default:30 }}分钟　来源：{{ question_source|ai_source_label }}</p>
+    <p>题目类型：基础技能验证 + 问答题　题目数量：{{ questions|length }}题　当前状态：<span class="status {% if questions_locked %}green-soft{% else %}amber{% endif %}">{{ question_set.get_status_display|default:"待生成" }}</span>　版本：v{{ question_set.version|default:"-" }}　更新时间：{{ question_set.updated_at|date:"Y-m-d H:i:s"|default:"-" }}　建议时长：{{ question_set.duration_minutes|default:30 }}分钟　来源：{{ question_source|ai_source_label }}</p>
   </div>
   <div class="button-group">
-    <form method="post" class="inline-form js-wait-form" data-wait-text="正在确认题目并进入现场开发题配置...">{% csrf_token %}<button class="btn primary" name="action" value="confirm" type="submit">确认题目</button></form>
-    <a class="btn js-wait-link" data-wait-text="正在进入现场开发题配置，请稍候..." href="{% url 'development-task' task.pk %}">现场开发题配置</a>
-    <form method="post" class="inline-form js-wait-form" data-wait-text="正在重新生成整套题目，请稍候...">
-      {% csrf_token %}
-      <button class="btn" name="action" value="regenerate_set" type="submit" {% if not can_generate_questions %}disabled title="请先完成候选人信息确认和岗位简历分析"{% endif %}>{% if questions %}↻ 重新生成整套{% else %}生成整套题目{% endif %}</button>
-    </form>
+    {% if questions_locked %}
+      <button class="btn primary" type="button" disabled>✓ 题目已确认</button>
+    {% else %}
+      <form method="post" class="inline-form js-wait-form" data-wait-text="正在确认题目并进入现场开发题配置...">{% csrf_token %}<button class="btn primary" name="action" value="confirm" type="submit">确认题目</button></form>
+    {% endif %}
+    <a class="btn js-wait-link" data-wait-text="正在进入现场开发题配置，请稍候..." href="{% url 'development-task' task.pk %}">{% if questions_locked %}进入现场开发题{% else %}现场开发题配置{% endif %}</a>
+    {% if questions_locked %}
+      <button class="btn" type="button" disabled title="题目已确认并锁定，如需调整请重新开启审核流程">↻ 重新生成整套</button>
+    {% else %}
+      <form method="post" class="inline-form js-wait-form" data-wait-text="正在重新生成整套题目，请稍候...">
+        {% csrf_token %}
+        <button class="btn" name="action" value="regenerate_set" type="submit" {% if not can_generate_questions %}disabled title="请先完成候选人信息确认和岗位简历分析"{% endif %}>{% if questions %}↻ 重新生成整套{% else %}生成整套题目{% endif %}</button>
+      </form>
+    {% endif %}
   </div>
 </section>
 
-{% if not can_generate_questions %}
+{% if questions_locked %}
+  <section class="info-note">普通题已全部确认并锁定，单题状态、题目集状态和任务状态已保持一致。后续请进入现场开发题环节。</section>
+{% elif not can_generate_questions %}
   <section class="warn-box">当前任务还不能生成普通题，请先完成候选人信息确认和岗位简历分析。</section>
 {% endif %}
 
@@ -69,15 +79,19 @@
       </div>
     {% endif %}
     {% if selected_question %}
-      <form method="post" class="review-actions js-wait-form" data-wait-text="正在处理当前题目，请稍候...">
-        {% csrf_token %}
-        <input id="question-action-index" type="hidden" name="question_index" value="{{ selected_index }}">
-        <button name="action" value="approve" type="submit">✓ 通过</button>
-        <button name="action" value="simplify" type="submit">↓ 简化</button>
-        <button name="action" value="increase" type="submit">↑ 提高难度</button>
-        <button name="action" value="replace" type="submit">↔ 换一道同能力题</button>
-        <button name="action" value="delete" type="submit">删除</button>
-      </form>
+      {% if questions_locked %}
+        <div class="info-note">当前题目已确认，题目内容和评分标准已锁定。</div>
+      {% else %}
+        <form method="post" class="review-actions js-wait-form" data-wait-text="正在处理当前题目，请稍候...">
+          {% csrf_token %}
+          <input id="question-action-index" type="hidden" name="question_index" value="{{ selected_index }}">
+          <button name="action" value="approve" type="submit">✓ 通过</button>
+          <button name="action" value="simplify" type="submit">↓ 简化</button>
+          <button name="action" value="increase" type="submit">↑ 提高难度</button>
+          <button name="action" value="replace" type="submit">↔ 换一道同能力题</button>
+          <button name="action" value="delete" type="submit">删除</button>
+        </form>
+      {% endif %}
     {% endif %}
     {% if next_question %}
       <a id="next-question-link" class="next-question" data-index="{{ selected_index|add:1 }}" href="?q={{ selected_index|add:1 }}"><strong>下一题</strong><span>{{ next_question.content|truncatechars:24 }} ›</span></a>
@@ -193,7 +207,8 @@
         li.textContent = point;
         return li;
       }));
-      document.getElementById("question-action-index").value = index;
+      const actionIndex = document.getElementById("question-action-index");
+      if (actionIndex) actionIndex.value = index;
       const next = document.getElementById("next-question-link");
       const nextIndex = index + 1;
       if (questions[nextIndex]) {

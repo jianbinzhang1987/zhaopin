@@ -2,7 +2,6 @@ from datetime import timedelta
 from decimal import Decimal
 import random
 from uuid import uuid4
-from urllib.parse import quote
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -10,6 +9,7 @@ from django.db import transaction
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.utils.http import content_disposition_header
 
 from .forms import CandidateConfirmForm, EvaluationForm, PositionTemplateForm, SubmissionForm, TaskCreateForm
 from .models import AiJob, Attachment, AuditEvent, Department, DevelopmentTask, Evaluation, PositionTemplate, RecruitmentTask, Submission, TaskAnalysis
@@ -147,6 +147,30 @@ def _ai_source_label(source: str) -> str:
         "local_fallback": "本地兜底",
         "local_fallback_after_error": "模型失败后兜底",
     }.get(source or "", "未知")
+
+
+def _regular_questions_confirmed(task, question_set) -> bool:
+    return task.regular_question_status == "confirmed" or bool(question_set and question_set.status == "confirmed")
+
+
+def _mark_regular_questions_confirmed(question_set) -> None:
+    """统一题目集与单题状态，避免题目集已确认但单题仍显示待确认。"""
+    questions = list(question_set.questions or [])
+    normalized_questions = []
+    changed = question_set.status != "confirmed"
+    for question in questions:
+        if isinstance(question, dict):
+            normalized = dict(question)
+            if normalized.get("status") != "confirmed":
+                normalized["status"] = "confirmed"
+                changed = True
+            normalized_questions.append(normalized)
+        else:
+            normalized_questions.append(question)
+    if changed:
+        question_set.questions = normalized_questions
+        question_set.status = "confirmed"
+        question_set.save(update_fields=["questions", "status", "updated_at"])
 
 
 def _regular_question_context(question_set, selected_index: int = 0) -> dict:
@@ -595,15 +619,29 @@ def regular_questions_view(request, pk):
     question_set = task.regular_question_sets.first()
     selected_index = _safe_int(request.GET.get("q"), default=0)
     can_generate_questions = _status_allowed(task, *_QUESTION_REGENERATE_ALLOWED_STATUSES)
+    questions_locked = _regular_questions_confirmed(task, question_set)
     if request.method == "GET" and (not question_set or not question_set.questions):
-        if can_generate_questions:
+        if questions_locked:
+            messages.warning(request, "普通题已经确认，但当前题目集为空，请联系管理员检查数据。")
+        elif can_generate_questions:
             question_set = _generate_initial_regular_questions(task, request.user)
             messages.info(request, f"已自动生成普通题：版本 v{question_set.version}，请审核确认。")
         else:
             messages.warning(request, "当前阶段尚不能生成普通题，请先完成前置流程。")
+    questions_locked = _regular_questions_confirmed(task, question_set)
+    if questions_locked:
+        if question_set:
+            _mark_regular_questions_confirmed(question_set)
+        if task.regular_question_status != "confirmed":
+            task.regular_question_status = "confirmed"
+            task.save(update_fields=["regular_question_status", "updated_at"])
+    can_generate_questions = can_generate_questions and not questions_locked
     if request.method == "POST":
         action = request.POST.get("action")
         if action == "regenerate_set":
+            if questions_locked:
+                messages.info(request, "普通题已经确认并锁定，不能重新生成整套题目。")
+                return redirect("regular-questions", pk=task.pk)
             if not can_generate_questions:
                 log_event(
                     task,
@@ -632,6 +670,9 @@ def regular_questions_view(request, pk):
             messages.success(request, f"普通题已重新生成：版本 v{question_set.version}，来源 {_ai_source_label(question_source)}。")
             return redirect("regular-questions", pk=task.pk)
         if action in {"approve", "simplify", "increase", "replace", "delete"}:
+            if questions_locked:
+                messages.info(request, "普通题已经确认并锁定，不能继续修改单道题目。")
+                return redirect("regular-questions", pk=task.pk)
             if not question_set or not isinstance(question_set.questions, list) or not question_set.questions:
                 messages.error(request, "还没有可操作的普通题，请先生成题目。")
                 return redirect("regular-questions", pk=task.pk)
@@ -659,15 +700,16 @@ def regular_questions_view(request, pk):
         if action != "confirm":
             messages.error(request, "未知的题目操作。")
             return redirect("regular-questions", pk=task.pk)
+        if questions_locked:
+            messages.info(request, "普通题已经确认，正在进入现场开发题配置。")
+            return redirect("development-task", pk=task.pk)
         if not _status_allowed(task, "pending_question_review", "pending_verification_confirmation", "pending_analysis"):
             messages.error(request, "当前阶段无法确认普通题。")
             return redirect("regular-questions", pk=task.pk)
         if not question_set or not question_set.questions:
             messages.error(request, "还没有可确认的普通题，请先生成题目。")
             return redirect("regular-questions", pk=task.pk)
-        if question_set:
-            question_set.status = "confirmed"
-            question_set.save(update_fields=["status", "updated_at"])
+        _mark_regular_questions_confirmed(question_set)
         if not task.development_tasks.exists():
             _generate_initial_development_task(task, request.user)
         task.regular_question_status = "confirmed"
@@ -677,7 +719,12 @@ def regular_questions_view(request, pk):
         log_event(task, request.user, "regular_questions_confirmed", "确认普通题目集")
         messages.success(request, "普通题已确认。")
         return redirect("development-task", pk=task.pk)
-    context = {"task": task, "question_set": question_set, "can_generate_questions": can_generate_questions}
+    context = {
+        "task": task,
+        "question_set": question_set,
+        "can_generate_questions": can_generate_questions,
+        "questions_locked": questions_locked,
+    }
     context.update(_regular_question_context(question_set, selected_index))
     return render(request, "recruitment/regular_questions.html", context)
 
@@ -1030,8 +1077,8 @@ def _build_export_response(task, kind: str, fmt: str, with_answers: bool = True)
     }[(kind, fmt)]
     filename, content = builder(task, with_answers=with_answers) if kind == "regular" else builder(task)
     response = HttpResponse(content, content_type=_CONTENT_TYPE[fmt])
-    # 同时提供 ASCII 与 UTF-8 文件名，兼容性最好
-    response["Content-Disposition"] = f"attachment; filename={quote(filename)}"
+    # Django 会按 RFC 5987 为中文文件名生成 UTF-8 Content-Disposition。
+    response["Content-Disposition"] = content_disposition_header(as_attachment=True, filename=filename)
     response["Content-Length"] = str(len(content))
     return response
 

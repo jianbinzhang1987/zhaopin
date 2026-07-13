@@ -964,20 +964,20 @@ input:focus, select:focus, textarea:focus {
   z-index: 1;
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 1.1fr 0.9fr;
-  max-width: 1280px;
+  grid-template-columns: 1fr 1fr;
+  max-width: 1080px;
   margin: 0 auto;
   padding: 28px;
-  gap: 28px;
+  gap: 60px;
   align-items: center;
 }
 
 /* 左侧品牌介绍 */
 .login-aside {
-  align-self: stretch;
+  align-self: center;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: center;
   color: #fff;
   padding: 28px;
 }
@@ -1011,6 +1011,7 @@ input:focus, select:focus, textarea:focus {
   font-size: 12px; color: rgba(225, 235, 255, .55);
   border-top: 1px solid rgba(255, 255, 255, .14);
   padding-top: 18px;
+  margin-top: 48px;
 }
 
 /* 右侧登录卡片 */
@@ -1019,10 +1020,11 @@ input:focus, select:focus, textarea:focus {
   overflow: hidden;
   background: #fff;
   border-radius: 16px;
-  padding: 48px 40px 36px;
+  padding: 48px 44px 36px;
   box-shadow: 0 24px 60px rgba(8, 20, 50, .28);
-  max-width: 380px;
-  justify-self: end;
+  width: 100%;
+  max-width: 440px;
+  justify-self: center;
 }
 .login-panel::before {
   content: "";
@@ -1059,21 +1061,12 @@ input:focus, select:focus, textarea:focus {
   transition: border-color 0.18s ease, background 0.18s ease;
 }
 .field-wrap:focus-within {
-  border-color: var(--blue);
+  border-color: #7eb0ff;
   background: #fff;
-  box-shadow: 0 0 0 3px var(--blue-soft);
 }
-.field-ico {
-  color: var(--muted);
-  padding-left: 14px;
-  display: grid;
-  place-items: center;
-}
-.field-ico svg { width: 16px; height: 16px; }
-.field-wrap:focus-within .field-ico { color: var(--blue); }
 .field-wrap input {
   border: none; outline: none; background: transparent;
-  padding: 12px 14px 12px 10px;
+  padding: 12px 14px;
   font-size: 14px; color: var(--ink);
   width: 100%;
 }
@@ -1092,7 +1085,12 @@ input:focus, select:focus, textarea:focus {
   margin-top: 6px;
   transition: transform 0.12s ease, box-shadow 0.2s ease, opacity 0.2s ease;
 }
-.btn-login:hover { box-shadow: 0 8px 20px rgba(15, 107, 255, .35); }
+.btn-login:hover {
+  background: linear-gradient(135deg, #1d6ff5, #3d8fff);
+  color: #fff;
+  box-shadow: 0 8px 20px rgba(15, 107, 255, .35);
+  transform: translateY(-1px);
+}
 .btn-login:active { transform: translateY(1px); }
 
 .login-tip {
@@ -1103,8 +1101,8 @@ input:focus, select:focus, textarea:focus {
 }
 
 /* 响应式：中等屏幕收紧间距 */
-@media (max-width: 1100px) {
-  .login-main { gap: 20px; padding: 24px; }
+@media (max-width: 980px) {
+  .login-main { gap: 36px; padding: 24px; }
   .login-aside { padding: 24px; }
   .login-tag { font-size: 24px; }
   .login-sub { max-width: 420px; }
@@ -1112,7 +1110,7 @@ input:focus, select:focus, textarea:focus {
 }
 
 /* 响应式：窄屏隐藏左侧 */
-@media (max-width: 900px) {
+@media (max-width: 860px) {
   .login-main { grid-template-columns: 1fr; max-width: 460px; gap: 0; }
   .login-aside { display: none; }
   .login-panel { justify-self: stretch; max-width: none; padding: 42px 28px 32px; }

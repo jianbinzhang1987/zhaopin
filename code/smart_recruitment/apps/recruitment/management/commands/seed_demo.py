@@ -22,13 +22,13 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         User = get_user_model()
         admin, _ = User.objects.get_or_create(username="admin", defaults={"is_staff": True, "is_superuser": True, "email": "admin@example.com"})
-        admin.set_password("admin123456")
+        admin.set_password("admin123")
         admin.is_staff = True
         admin.is_superuser = True
         admin.save()
 
         tech, _ = User.objects.get_or_create(username="wang", defaults={"first_name": "王", "last_name": "招聘", "email": "wang@example.com"})
-        tech.set_password("admin123456")
+        tech.set_password("admin123")
         tech.save()
 
         dept, _ = Department.objects.get_or_create(code="AI-RD", defaults={"name": "AI研发部"})
@@ -117,4 +117,4 @@ class Command(BaseCommand):
             },
         )
         Evaluation.objects.get_or_create(task=task, defaults={"regular_score": 78, "development_score": 82, "final_score": 80, "recommendation": "yes"})
-        self.stdout.write(self.style.SUCCESS("演示数据已准备好：admin / admin123456"))
+        self.stdout.write(self.style.SUCCESS("演示数据已准备好：admin / admin123"))
